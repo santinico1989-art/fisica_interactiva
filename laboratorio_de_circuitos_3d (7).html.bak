@@ -1,0 +1,2300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio de Circuitos 3D: Leyes de Ohm y Kirchhoff</title>
+    <!-- Tailwind CSS para diseño moderno -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #03050c;
+            overflow: hidden;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Cristalera esmerilada premium (Glassmorphism) */
+        .glass-panel {
+            background: rgba(6, 10, 24, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            transition: all 0.25s ease;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 2px;
+        }
+
+        /* ===== RESPONSIVE MÓVIL ===== */
+        @media (max-width: 768px) {
+            #panels-wrapper {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                top: auto !important;
+                width: 100% !important;
+                height: auto !important;
+                max-height: 75vh;
+                background: rgba(3, 5, 12, 0.97);
+                backdrop-filter: blur(20px);
+                border-top: 1px solid rgba(234, 179, 8, 0.35);
+                border-radius: 18px 18px 0 0;
+                flex-direction: column !important;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 12px 12px 80px 12px;
+                gap: 8px;
+                z-index: 35 !important;
+                transform: translateY(100%);
+                transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+                pointer-events: auto !important;
+                display: flex !important;
+            }
+            #panels-wrapper.drawer-open {
+                transform: translateY(0%);
+            }
+            #side-panel {
+                position: relative !important;
+                left: auto !important;
+                top: auto !important;
+                bottom: auto !important;
+                width: 100% !important;
+                transform: none !important;
+                flex-direction: column;
+                gap: 8px;
+            }
+            #right-panel {
+                position: relative !important;
+                bottom: auto !important;
+                right: auto !important;
+                width: 100% !important;
+            }
+            #togglePanelBtn {
+                display: none !important;
+            }
+            #mobile-drawer-toggle {
+                display: flex !important;
+            }
+            #camera-controls-bottom {
+                bottom: 60px !important;
+                right: 8px !important;
+            }
+        }
+        @media (min-width: 769px) {
+            #mobile-drawer-toggle {
+                display: none !important;
+            }
+        }
+    </style>
+
+    <!-- Cargando Three.js y OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Configuración de MathJax v3 para fórmulas LaTeX -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body class="w-full h-screen text-gray-100 relative select-none">
+
+    <!-- CONTENEDOR DE LA ESCENA 3D -->
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-0">
+        <!-- Canvas de Three.js se inserta aquí -->
+    </div>
+
+    <div id="panels-wrapper" class="absolute inset-0 pointer-events-none z-20">
+
+    <!-- BOTÓN DE MOSTRAR/OCULTAR PANEL -->
+    <div id="togglePanelBtn" class="absolute left-[236px] top-3 z-30 pointer-events-auto transition-all duration-300">
+        <button onclick="toggleSidebar()" class="w-8 h-8 bg-gray-900/90 hover:bg-yellow-500 text-yellow-400 hover:text-white border border-gray-800 rounded-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md" title="Ocultar/Mostrar Interfaz">
+            <svg id="toggleIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- INTERFAZ FLOTANTE LATERAL IZQUIERDA (Menú vertical de 220px) -->
+    <div id="side-panel" class="absolute left-3 top-3 bottom-3 w-[220px] z-20 pointer-events-none flex flex-col gap-2 transition-transform duration-300 transform">
+        
+        <!-- 0. Botón Volver -->
+        <a href="./index.html" class="glass-panel rounded-xl p-2 pointer-events-auto shadow-md flex items-center justify-center gap-1.5 text-[8.5px] text-yellow-400 hover:text-yellow-300 font-bold uppercase tracking-wider font-orbitron transition-all">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Volver al Inicio
+        </a>
+
+        <!-- 1. Cabecera -->
+        <div class="glass-panel rounded-xl p-3 pointer-events-auto shadow-lg flex items-center gap-2.5 border-b border-yellow-500/30">
+            <div class="w-7 h-7 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-lg flex items-center justify-center shadow-md">
+                <svg class="w-4 h-4 text-slate-900 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="font-orbitron text-[11px] font-black tracking-wider text-yellow-400 leading-none">LAB CIRCUITOS</h1>
+                <p class="text-[7px] text-gray-400 font-semibold uppercase tracking-widest leading-none mt-1">Ohm & Kirchhoff 3D</p>
+            </div>
+        </div>
+
+        <!-- Selector de Modo de Simulación (SISTEMA DUAL) -->
+        <div class="glass-panel rounded-xl p-1 pointer-events-auto shadow-md flex gap-0.5">
+            <button id="mode-basic-btn" onclick="setSimulatorMode('basic')" class="flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center">
+                Básico (Ohm)
+            </button>
+            <button id="mode-advanced-btn" onclick="setSimulatorMode('advanced')" class="flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center">
+                Kirchhoff
+            </button>
+        </div>
+
+        <!-- 2. Estado de Puntos y Fase -->
+        <div class="glass-panel rounded-xl p-2 pointer-events-auto shadow-md flex justify-around text-center gap-1">
+            <div class="flex-1 border-r border-gray-800">
+                <small class="text-gray-400 text-[8px] font-bold block leading-none">PUNTOS</small>
+                <span id="score-display" class="font-orbitron text-xs font-black text-green-400 leading-none block mt-1">0</span>
+            </div>
+            <div class="flex-1">
+                <small class="text-gray-400 text-[8px] font-bold block leading-none">FASE</small>
+                <span id="phase-badge" class="font-orbitron text-xs font-black text-yellow-400 leading-none block mt-1">1 / 3</span>
+            </div>
+        </div>
+
+        <!-- 3. Tipo de Circuito / Topología -->
+        <div class="glass-panel rounded-xl p-2 pointer-events-auto shadow-md text-center">
+            <small class="text-gray-400 text-[8px] font-bold block leading-none uppercase tracking-wider mb-1">Topología</small>
+            <span id="circuit-type-badge" class="font-orbitron text-[10px] font-black uppercase text-yellow-300 bg-yellow-950/40 px-2 py-0.5 rounded border border-yellow-500/20 inline-block leading-none">SERIE</span>
+        </div>
+
+        <!-- 3.5. Sentido de la Corriente -->
+        <div class="glass-panel rounded-xl p-2 pointer-events-auto shadow-md">
+            <small class="text-gray-400 text-[8px] font-bold block leading-none uppercase tracking-wider mb-1.5 text-center">Sentido de Corriente</small>
+            <div class="grid grid-cols-2 gap-1 bg-gray-950/65 p-0.5 rounded-lg border border-gray-850">
+                <button id="flow-real-btn" onclick="setFlowMode('real')" class="py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5" title="Flujo real de electrones">
+                    <span class="leading-none text-cyan-400">REAL</span>
+                    <span class="text-[6px] text-gray-400 font-sans leading-none">− a + (e⁻)</span>
+                </button>
+                <button id="flow-conv-btn" onclick="setFlowMode('conventional')" class="py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5" title="Sentido convencional de la corriente">
+                    <span class="leading-none text-orange-400">CONV.</span>
+                    <span class="text-[6px] text-gray-400 font-sans leading-none">+ a − (I)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. Panel de Variables dadas (Con scroll adaptativo) -->
+        <div class="glass-panel rounded-xl p-3 pointer-events-auto shadow-md flex flex-col gap-2 flex-grow overflow-hidden">
+            <div class="flex-grow flex flex-col gap-1.5 overflow-hidden">
+                <h3 class="text-[8.5px] font-bold text-yellow-400 uppercase tracking-wider">Parámetros del Circuito:</h3>
+                <div id="variables-dadas" class="grid grid-cols-1 gap-1 overflow-y-auto custom-scrollbar pr-0.5 max-h-[160px]">
+                    <!-- Generado dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Entrada de Datos -->
+            <div class="border-t border-gray-800/80 pt-1.5 mt-auto">
+                <h3 id="input-title" class="text-[8.5px] font-bold text-gray-300 mb-1 uppercase tracking-wider">Calcula:</h3>
+                
+                <!-- Entrada Manual (Fase 1) -->
+                <div id="manual-input-wrapper">
+                    <div class="relative rounded-md overflow-hidden border border-yellow-500 shadow-md">
+                        <input type="number" id="manual-input" step="0.1" 
+                               class="w-full bg-yellow-400 text-black placeholder-gray-700 text-center font-orbitron text-sm font-black py-1 px-1.5 focus:outline-none focus:bg-yellow-300 transition-all" 
+                               placeholder="0.0">
+                        <span id="unit-label" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-yellow-900 font-black font-orbitron text-[10px]"></span>
+                    </div>
+                </div>
+
+                <!-- Opciones Múltiples (Fase 2 y 3) -->
+                <div id="options-container" class="hidden flex flex-col gap-1">
+                    <!-- Inyección dinámica en JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Panel de Feedback -->
+        <div id="feedback-panel" class="glass-panel rounded-xl p-2.5 pointer-events-auto shadow-md text-center min-h-[42px] flex flex-col justify-center border-t border-yellow-500">
+            <p id="feedback" class="text-[9px] font-bold text-yellow-400 leading-tight">Analizando red eléctrica...</p>
+            <p id="correct-answer-display" class="text-[8px] text-gray-400 mt-0.5 leading-none font-mono"></p>
+        </div>
+    </div>
+
+    <!-- PANEL DE CONTROL ACCIÓN Y CÁMARA (Lado inferior derecho) -->
+    <div id="right-panel" class="absolute bottom-4 right-3 z-30 pointer-events-auto flex flex-col gap-2 w-[280px]">
+        <!-- Botones de Acción -->
+        <div class="glass-panel rounded-xl p-2 flex flex-col gap-1.5 border-t border-yellow-500 shadow-xl">
+            <!-- Botón Verificar -->
+            <button id="checkBtn" class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-955 font-black py-2 px-3 rounded-lg shadow-md transform hover:-translate-y-0.5 transition-all text-xs uppercase tracking-wider font-orbitron flex items-center justify-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Verificar respuesta
+            </button>
+            <!-- Botón Siguiente Ejercicio -->
+            <button id="resetBtn" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black py-2 px-3 rounded-lg transition-all text-xs uppercase tracking-wider font-orbitron shadow-md flex items-center justify-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.228 10"/>
+                </svg>
+                Nuevo Circuito
+            </button>
+        </div>
+
+        <!-- Controles de Cámara -->
+        <div class="bg-gray-950/95 p-1 rounded-xl border border-gray-800 backdrop-blur-md flex gap-1">
+            <button onclick="changeCamera('frontal')" class="flex-1 py-1.5 bg-gray-900 hover:bg-yellow-500 hover:text-slate-950 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all text-gray-400 font-orbitron">
+                Frontal
+            </button>
+            <button onclick="changeCamera('isometrica')" class="flex-1 py-1.5 bg-gray-900 hover:bg-yellow-500 hover:text-slate-950 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all text-gray-400 font-orbitron">
+                Isométrica
+            </button>
+            <button onclick="changeCamera('componente')" class="flex-1 py-1.5 bg-gray-900 hover:bg-yellow-500 hover:text-slate-950 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all text-gray-400 font-orbitron">
+                Zoom R₃
+            </button>
+            <button onclick="changeCamera('libre')" class="flex-1 py-1.5 bg-gray-900 hover:bg-yellow-500 hover:text-slate-950 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all text-gray-400 font-orbitron">
+                Libre ↺
+            </button>
+        </div>
+    </div>
+    </div><!-- end panels-wrapper -->
+
+    <!-- BOTÓN FLOTANTE PARA DESPLEGAR PANEL EN MÓVILES -->
+    <button id="mobile-drawer-toggle" onclick="toggleMobileDrawer()" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 font-orbitron font-extrabold text-[10px] uppercase tracking-wider px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.5)] border border-yellow-300/30 transition-all duration-300 items-center gap-2 pointer-events-auto" style="display:none">
+        <svg id="mobile-drawer-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+        <span id="mobile-drawer-text">Ver Circuito y Resolver</span>
+    </button>
+
+    <!-- BOTÓN DE AYUDA / FÓRMULAS -->
+    <div class="absolute top-3 right-3 z-10 pointer-events-auto">
+        <button onclick="toggleHelpModal()" class="w-8 h-8 bg-gray-900/90 hover:bg-yellow-500 text-yellow-400 hover:text-slate-950 border border-gray-800 rounded-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9.663 17h4.673M12 3v1m6.364.364l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </button>
+    </div>
+
+    <!-- MODAL DE TEORÍA Y FÓRMULAS -->
+    <div id="help-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm hidden pointer-events-auto">
+        <div class="glass-panel w-full max-w-lg rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="toggleHelpModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 class="font-orbitron text-lg font-bold text-yellow-500 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                Leyes de Kirchhoff y Ohm
+            </h2>
+            
+            <div class="space-y-4 text-xs text-gray-300 overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
+                <p>Las redes de circuitos eléctricos se pueden analizar en base a dos metodologías didácticas:</p>
+                
+                <div class="bg-gray-950/80 p-2.5 rounded-lg border border-gray-850">
+                    <h3 class="font-bold text-yellow-500 mb-1 font-orbitron text-[10px] uppercase tracking-wider">1. Asociación de Resistencias (Modo Básico):</h3>
+                    <p class="text-[9px] text-gray-400 mb-1">Permite simplificar redes en serie ($R_{eq} = R_1+R_2+R_3$) y en paralelo ($\frac{1}{R_{eq} } = \frac{1}{R_1}+\frac{1}{R_2}+\frac{1}{R_3}$) aplicando la ley de Ohm global:</p>
+                    <p class="font-mono text-center text-xs text-yellow-200">$$V = I \cdot R_{eq}$$</p>
+                </div>
+
+                <div class="bg-gray-950/80 p-2.5 rounded-lg border border-gray-850">
+                    <h3 class="font-bold text-yellow-500 mb-1 font-orbitron text-[10px] uppercase tracking-wider">2. Ley de Corrientes de Kirchhoff (LKC):</h3>
+                    <p class="text-[9px] text-gray-400 mb-1">La corriente que entra a cualquier nodo central es igual a la suma de las corrientes que salen. Para un nodo con tres ramas concurrentes:</p>
+                    <p class="font-mono text-center text-xs text-yellow-200">$$I_1 + I_2 = I_3$$</p>
+                </div>
+
+                <div class="bg-gray-950/80 p-2.5 rounded-lg border border-gray-850">
+                    <h3 class="font-bold text-yellow-500 mb-1 font-orbitron text-[10px] uppercase tracking-wider">3. Ley de Voltajes de Kirchhoff (LKT):</h3>
+                    <p class="text-[9px] text-gray-400 mb-1">La suma algebraica de las caídas de potencial a lo largo de cualquier trayectoria de malla cerrada debe ser idénticamente cero ($\sum V_i = 0$).</p>
+                </div>
+
+                <div class="bg-gray-950/80 p-2.5 rounded-lg border border-gray-850">
+                    <h3 class="font-bold text-yellow-500 mb-1 font-orbitron text-[10px] uppercase tracking-wider">4. Análisis de Nodos (Nodo Central $V_n$):</h3>
+                    <p class="text-[9px] text-gray-400 mb-1">En el circuito avanzado de dos mallas y dos fuentes independientes con nodo central a tierra a través de $R_3$, se aplica:</p>
+                    <p class="font-mono text-center text-xs text-yellow-200">$$\frac{V_{f1} - V_n}{R_1} + \frac{V_{f2} - V_n}{R_2} = \frac{V_n}{R_3}$$</p>
+                    <p class="text-[9px] text-gray-400 mt-1">Donde $I_1 = \frac{V_{f1}-V_n}{R_1}$, $I_2 = \frac{V_{f2}-V_n}{R_2}$ y la corriente total del nodo es $I_3 = \frac{V_n}{R_3}$.</p>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <button onclick="toggleHelpModal()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-955 py-2 rounded-lg font-bold font-orbitron uppercase text-[10px] tracking-wider transition-all">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGICA DEL SIMULADOR -->
+    <script>
+        // --- SINTETIZADOR DE SONIDOS (Web Audio API) ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playTick() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(900, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.05);
+            }
+            playSlide() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+            playSuccess() {
+                this.init();
+                const notes = [261.63, 329.63, 392.00, 523.25]; // Do Mayor Arpegio
+                notes.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.08);
+                    gain.gain.setValueAtTime(0.12, this.ctx.currentTime + i * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.08 + 0.35);
+                    osc.start(this.ctx.currentTime + i * 0.08);
+                    osc.stop(this.ctx.currentTime + i * 0.08 + 0.35);
+                });
+            }
+            playFailure() {
+                this.init();
+                const notes = [140, 80];
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(notes[0], this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(notes[1], this.ctx.currentTime + 0.45);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.45);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.45);
+            }
+            playExplosion() {
+                this.init();
+                const bufferSize = this.ctx.sampleRate * 0.4;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 600;
+
+                const gain = this.ctx.createGain();
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                noise.start();
+            }
+        }
+        const sfx = new SoundFX();
+
+        // --- SISTEMA 3D CON THREE.JS ---
+        let scene, camera, renderer, controls;
+        let powerSource, powerSource2, resistor1, resistor2, resistor3;
+        let wireMeshGroup;
+        let particlesArray = [];
+        let sparkParticles = [];
+
+        // Modo de Simulación Activo ("basic" o "advanced")
+        let currentSimulatorMode = "basic";
+
+        // Etiquetas 3D de información Básica
+        let labelR1, labelR2, labelR3, labelVsrc, labelItot;
+        
+        // Etiquetas de Polaridad de la fuente (+ y -)
+        let labelPos, labelNeg;
+
+        // Nuevas Etiquetas 3D para Modo Kirchhoff Avanzado
+        let labelVsrc2, labelVnode, labelI1, labelI2, labelI3;
+
+        // Sentido de Corriente Activo ("real" = - a +, "conventional" = + a -)
+        let currentFlowMode = "real";
+
+        // Parámetros Físicos del Escenario
+        let displayedParameters = {}; 
+        let missingVariableType = "";
+        let correctAnswer = 0;
+        let attemptPhase = 1;
+        let currentScore = 0;
+        let currentOptions = [];
+        const ABS_TOLERANCE = 0.08; // Margen optimizado para cálculos exactos a 1 decimal
+
+        const basicVariableKeys = ["R1", "R2", "R3", "Vsrc", "Itot"];
+        const basicVariableMeta = {
+            R1: { label: "Resistencia R₁", unit: "Ω", name: "R1" },
+            R2: { label: "Resistencia R₂", unit: "Ω", name: "R2" },
+            R3: { label: "Resistencia R₃", unit: "Ω", name: "R3" },
+            Vsrc: { label: "Voltaje Fuente (V_f)", unit: "V", name: "voltaje" },
+            Itot: { label: "Intensidad Total (I_tot)", unit: "A", name: "corriente" }
+        };
+
+        const advancedVariableKeys = ["R1", "R2", "R3", "Vsrc", "Vsrc2", "Vnode", "I1", "I2", "I3"];
+        const advancedVariableMeta = {
+            R1: { label: "Resistencia R₁", unit: "Ω" },
+            R2: { label: "Resistencia R₂", unit: "Ω" },
+            R3: { label: "Resistencia R₃", unit: "Ω" },
+            Vsrc: { label: "Voltaje Fuente 1 (V_f1)", unit: "V" },
+            Vsrc2: { label: "Voltaje Fuente 2 (V_f2)", unit: "V" },
+            Vnode: { label: "Potencial Nodo Central (V_n)", unit: "V" },
+            I1: { label: "Corriente de Rama 1 (I₁)", unit: "A" },
+            I2: { label: "Corriente de Rama 2 (I₂)", unit: "A" },
+            I3: { label: "Corriente de Rama 3 (I₃)", unit: "A" }
+        };
+
+        // Estado físico de cortocircuito (Falla)
+        let isShortCircuited = false;
+        let shortCircuitTime = 0;
+        const shortCircuitDuration = 1.8;
+        let pendingFailureAction = null;
+
+        const gameState = { solved: false };
+
+        function init3D() {
+            const container = document.getElementById("canvas-container");
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050711);
+            scene.fog = new THREE.FogExp2(0x050711, 0.012);
+
+            // Cámara (Ajuste de FOV para encuadre óptimo)
+            camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 0, 9.5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls centrado perfectamente en Y = 0.0
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.15;
+            controls.minDistance = 3;
+            controls.maxDistance = 20;
+            controls.target.set(0, 0, 0);
+
+            // Luces de laboratorio
+            const ambient = new THREE.AmbientLight(0xffffff, 0.25);
+            scene.add(ambient);
+
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.1);
+            mainLight.position.set(4, 9, 7);
+            mainLight.castShadow = true;
+            scene.add(mainLight);
+
+            const cyanLight = new THREE.PointLight(0x00ffff, 1.2, 8);
+            cyanLight.position.set(-3.5, 1, 0);
+            scene.add(cyanLight);
+
+            // Rejilla de mesa de circuitos (Alineación vertical coherente)
+            const gridHelper = new THREE.GridHelper(24, 24, 0x1d4ed8, 0x111827);
+            gridHelper.position.y = -1.2;
+            scene.add(gridHelper);
+
+            // --- CONSTRUCCIÓN DE COMPONENTES ---
+            buildCircuitComponents();
+
+            // --- INICIALIZAR ETIQUETAS DE TEXTO 3D BÁSICAS ---
+            labelR1 = initSpriteLabel();
+            labelR2 = initSpriteLabel();
+            labelR3 = initSpriteLabel();
+            labelVsrc = initSpriteLabel();
+            labelItot = initSpriteLabel();
+
+            scene.add(labelR1);
+            scene.add(labelR2);
+            scene.add(labelR3);
+            scene.add(labelVsrc);
+            scene.add(labelItot);
+
+            // --- INICIALIZAR ETIQUETAS DE POLARIDAD (+ y -) ---
+            labelPos = initSquareSpriteLabel();
+            labelNeg = initSquareSpriteLabel();
+            scene.add(labelPos);
+            scene.add(labelNeg);
+            
+            // Posicionar las etiquetas fijas de polaridad encima de cada borne
+            labelPos.position.set(-4.3, 1.45, 0.3);
+            labelNeg.position.set(-3.7, 1.45, 0.3);
+            updatePoleLabelText(labelPos, "+", "#ef4444");
+            updatePoleLabelText(labelNeg, "-", "#3b82f6");
+
+            // --- INICIALIZAR ETIQUETAS AVANZADAS (KIRCHHOFF) ---
+            labelVsrc2 = initSpriteLabel();
+            labelVnode = initSpriteLabel();
+            labelI1 = initSpriteLabel();
+            labelI2 = initSpriteLabel();
+            labelI3 = initSpriteLabel();
+
+            scene.add(labelVsrc2);
+            scene.add(labelVnode);
+            scene.add(labelI1);
+            scene.add(labelI2);
+            scene.add(labelI3);
+
+            window.addEventListener("resize", onWindowResize);
+        }
+
+        // --- SELECCIONAR MODO DE SIMULADOR DUAL ---
+        function setSimulatorMode(mode) {
+            if (currentSimulatorMode === mode) return;
+            currentSimulatorMode = mode;
+            
+            // Sonido de cambio de interfaz
+            sfx.playSlide();
+
+            // Actualizar clases de botones en la interfaz gráfica
+            const btnBasic = document.getElementById("mode-basic-btn");
+            const btnAdvanced = document.getElementById("mode-advanced-btn");
+
+            if (currentSimulatorMode === "basic") {
+                btnBasic.className = "flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center border border-yellow-500/50 bg-yellow-950/60 shadow-[0_0_8px_rgba(234,179,8,0.25)] text-yellow-400 pointer-events-auto";
+                btnAdvanced.className = "flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center border border-transparent text-gray-500 hover:text-gray-300 pointer-events-auto";
+                powerSource2.visible = false;
+            } else {
+                btnBasic.className = "flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center border border-transparent text-gray-500 hover:text-gray-300 pointer-events-auto";
+                btnAdvanced.className = "flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center border border-purple-500/50 bg-purple-950/60 shadow-[0_0_8px_rgba(168,85,247,0.25)] text-purple-400 pointer-events-auto";
+                powerSource2.visible = true;
+                
+                // Forzar sentido convencional en Kirchhoff para evitar moficiaciones que confundan al alumno
+                currentFlowMode = "conventional";
+            }
+
+            updateFlowUI();
+            resetExercise();
+        }
+
+        // --- CREADOR DE COMPONENTES DEL CIRCUITO ---
+        function buildCircuitComponents() {
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.1, metalness: 0.9 });
+            const neonMat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, emissive: 0x00a8ff, roughness: 0.2 });
+            const neonMatPurple = new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0x7e22ce, roughness: 0.2 });
+
+            // Fuente de Alimentación de Neón 1 (Izquierda)
+            const srcGroup = new THREE.Group();
+            const baseGeo = new THREE.BoxGeometry(1.6, 0.4, 1.6);
+            const baseMesh = new THREE.Mesh(baseGeo, metalMat);
+            baseMesh.position.y = 0.2;
+            srcGroup.add(baseMesh);
+
+            const cylinderGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.0, 16);
+            const cylinder = new THREE.Mesh(cylinderGeo, neonMat);
+            cylinder.position.y = 0.9;
+            srcGroup.add(cylinder);
+
+            // Bornes de Fuente 1
+            const capGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.4, 8);
+            const redMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.5, roughness: 0.2 });
+            const blueMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, metalness: 0.5, roughness: 0.2 });
+
+            const terminalPos = new THREE.Mesh(capGeo, redMat);
+            terminalPos.position.set(-0.3, 1.4, 0); 
+            srcGroup.add(terminalPos);
+
+            const terminalNeg = new THREE.Mesh(capGeo, blueMat);
+            terminalNeg.position.set(0.3, 1.4, 0);  
+            srcGroup.add(terminalNeg);
+
+            powerSource = srcGroup;
+            powerSource.position.set(-4.5, -0.4, 0); 
+            scene.add(powerSource);
+
+            // Fuente de Alimentación 2 (Derecha - Usada en Kirchhoff)
+            const srcGroup2 = new THREE.Group();
+            const baseMesh2 = new THREE.Mesh(baseGeo, metalMat);
+            baseMesh2.position.y = 0.2;
+            srcGroup2.add(baseMesh2);
+
+            const cylinder2 = new THREE.Mesh(cylinderGeo, neonMatPurple);
+            cylinder2.position.y = 0.9;
+            srcGroup2.add(cylinder2);
+
+            // Bornes de Fuente 2 (Espejados para conexión simétrica en Kirchhoff)
+            const terminalPos2 = new THREE.Mesh(capGeo, redMat);
+            terminalPos2.position.set(0.3, 1.4, 0); // Positivo a la derecha
+            srcGroup2.add(terminalPos2);
+
+            const terminalNeg2 = new THREE.Mesh(capGeo, blueMat);
+            terminalNeg2.position.set(-0.3, 1.4, 0); // Negativo a la izquierda
+            srcGroup2.add(terminalNeg2);
+
+            powerSource2 = srcGroup2;
+            powerSource2.position.set(4.5, -0.4, 0);
+            powerSource2.visible = false; // Oculta por defecto en modo Básico
+            scene.add(powerSource2);
+
+            // Resistencias 1, 2 y 3
+            resistor1 = createResistorMesh();
+            resistor2 = createResistorMesh();
+            resistor3 = createResistorMesh();
+
+            scene.add(resistor1);
+            scene.add(resistor2);
+            scene.add(resistor3);
+
+            // Grupo de cables
+            wireMeshGroup = new THREE.Group();
+            scene.add(wireMeshGroup);
+        }
+
+        // --- CREADOR DE MESH DE RESISTENCIA ---
+        function createResistorMesh() {
+            const group = new THREE.Group();
+            const ceramicMat = new THREE.MeshStandardMaterial({ color: 0xdfcbaf, roughness: 0.4 }); 
+            const leadMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.9, roughness: 0.15 });
+
+            // Cuerpo principal cilíndrico
+            const bodyGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.8, 16);
+            bodyGeo.rotateZ(Math.PI / 2); 
+            const body = new THREE.Mesh(bodyGeo, ceramicMat);
+            body.castShadow = true;
+            group.add(body);
+
+            // Puntas de plomo metálicas
+            const capGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.12, 16);
+            capGeo.rotateZ(Math.PI / 2);
+            
+            const capLeft = new THREE.Mesh(capGeo, leadMat);
+            capLeft.position.x = -0.4;
+            group.add(capLeft);
+
+            const capRight = new THREE.Mesh(capGeo, leadMat);
+            capRight.position.x = 0.4;
+            group.add(capRight);
+
+            // Patillas de alambre
+            const wireGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8);
+            wireGeo.rotateZ(Math.PI / 2);
+
+            const wireLeft = new THREE.Mesh(wireGeo, leadMat);
+            wireLeft.position.x = -0.6;
+            group.add(wireLeft);
+
+            const wireRight = new THREE.Mesh(wireGeo, leadMat);
+            wireRight.position.x = 0.6;
+            group.add(wireRight);
+
+            // Anillos de código de color (Anillos en 3D superpuestos)
+            const ringGeo = new THREE.TorusGeometry(0.185, 0.015, 8, 16);
+            ringGeo.rotateY(Math.PI / 2);
+
+            group.bandRings = [];
+            const offsets = [-0.25, -0.1, 0.05, 0.25];
+            offsets.forEach((offset, idx) => {
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0xdfcbaf }); 
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.position.x = offset;
+                group.add(ring);
+                group.bandRings.push(ring);
+            });
+
+            return group;
+        }
+
+        // --- TRADUCCIÓN DE VALOR ÓHMICO A CÓDIGO DE COLORES ---
+        function getResistorBands(value) {
+            let val = Math.round(value);
+            if (val < 1) val = 1;
+            let str = val.toString();
+            let d1, d2, mult;
+
+            if (str.length === 1) {
+                d1 = parseInt(str[0]);
+                d2 = 0;
+                mult = -1; // Multiplicador Oro (0.1)
+            } else if (str.length === 2) {
+                d1 = parseInt(str[0]);
+                d2 = parseInt(str[1]);
+                mult = 0; // Negro (1)
+            } else if (str.length === 3) {
+                d1 = parseInt(str[0]);
+                d2 = parseInt(str[1]);
+                mult = 1; // Marrón (10)
+            } else {
+                d1 = 1;
+                d2 = 0;
+                mult = 2; // Rojo (100)
+            }
+
+            const colorCodes = [
+                0x111111, // Negro
+                0x703d15, // Marrón
+                0xef4444, // Rojo
+                0xf97316, // Naranja
+                0xeab308, // Amarillo
+                0x22c55e, // Verde
+                0x3b82f6, // Azul
+                0xa855f7, // Violeta
+                0x6b7280, // Gris
+                0xffffff  // Blanco
+            ];
+
+            let b1 = colorCodes[d1];
+            let b2 = colorCodes[d2];
+            let bm = mult === -1 ? 0xcca43b : colorCodes[mult]; 
+            let bt = 0xcca43b; // Oro (5% de tolerancia)
+
+            return [b1, b2, bm, bt];
+        }
+
+        // --- APLICAR COLORES DE ANILLOS EN 3D ---
+        function applyColorBands(resistorMesh, resistanceValue) {
+            const colors = getResistorBands(resistanceValue);
+            resistorMesh.bandRings.forEach((ring, idx) => {
+                ring.material.dispose();
+                ring.material = new THREE.MeshBasicMaterial({ color: colors[idx] });
+            });
+        }
+
+        // --- INICIALIZAR ETIQUETA SPRITE STANDARD (Rectangular) ---
+        function initSpriteLabel() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 384;
+            canvas.height = 128;
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(1.4, 0.46, 1);
+            return sprite;
+        }
+
+        // --- INICIALIZAR ETIQUETA DE POLARIDAD (Cuadrada) ---
+        function initSquareSpriteLabel() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(0.35, 0.35, 1);
+            return sprite;
+        }
+
+        // --- ACTUALIZAR TEXTO DE POLARIDAD ---
+        function updatePoleLabelText(sprite, text, color) {
+            const canvas = sprite.material.map.image;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgba(8, 12, 28, 0.85)';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 6;
+
+            const radius = canvas.width / 2 - 6;
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = color;
+            ctx.font = `bold 76px Orbitron, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2 - 3);
+
+            sprite.material.map.needsUpdate = true;
+        }
+
+        // --- ACTUALIZAR ETIQUETA SPRITE STANDARD ---
+        function updateSpriteText(sprite, text, borderColor = 'rgba(234, 179, 8, 0.5)', isSolvedLabel = false) {
+            const canvas = sprite.material.map.image;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = isSolvedLabel ? 'rgba(4, 30, 15, 0.95)' : 'rgba(8, 12, 28, 0.85)';
+            ctx.strokeStyle = isSolvedLabel ? '#10b981' : borderColor;
+            ctx.lineWidth = 5;
+
+            const r = 20;
+            const x = 4, y = 4, w = canvas.width - 8, h = canvas.height - 8;
+
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = isSolvedLabel ? '#10b981' : '#ffffff';
+            ctx.font = `bold 32px Orbitron, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            sprite.material.map.needsUpdate = true;
+        }
+
+        // --- SENTIDO DE CORRIENTE ---
+        function setFlowMode(mode) {
+            if (currentSimulatorMode === "advanced") {
+                currentFlowMode = "conventional";
+                updateFlowUI();
+                return;
+            }
+            if (currentFlowMode === mode) return;
+            sfx.playTick();
+            currentFlowMode = mode;
+            updateFlowUI();
+            
+            if (!gameState.solved) {
+                const colorHex = currentFlowMode === "real" ? 0x00ffcc : 0xff5400;
+                particlesArray.forEach(p => {
+                    p.sprite.material.color.setHex(colorHex);
+                });
+            }
+        }
+
+        function updateFlowUI() {
+            const realBtn = document.getElementById("flow-real-btn");
+            const fontConvBtn = document.getElementById("flow-conv-btn");
+            
+            if (currentSimulatorMode === "advanced") {
+                realBtn.className = "py-1 px-1 rounded text-[8px] font-bold font-orbitron uppercase text-center flex flex-col items-center justify-center gap-0.5 border border-transparent text-gray-600 cursor-not-allowed opacity-50";
+                fontConvBtn.className = "py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5 border border-orange-500/50 bg-orange-950/60 shadow-[0_0_8px_rgba(249,115,22,0.25)] text-orange-400";
+                return;
+            }
+            
+            if (currentFlowMode === "real") {
+                realBtn.className = "py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5 border border-cyan-500/50 bg-cyan-950/60 shadow-[0_0_8px_rgba(6,182,212,0.25)] text-cyan-400";
+                fontConvBtn.className = "py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5 border border-transparent text-gray-500 hover:text-gray-300";
+            } else {
+                realBtn.className = "py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5 border border-transparent text-gray-500 hover:text-gray-300";
+                fontConvBtn.className = "py-1 px-1 rounded text-[8px] font-bold font-orbitron transition-all duration-200 uppercase text-center flex flex-col items-center justify-center gap-0.5 border border-orange-500/50 bg-orange-950/60 shadow-[0_0_8px_rgba(249,115,22,0.25)] text-orange-400";
+            }
+        }
+
+        // --- TRIPLETA PARA ASOCIACIONES EN PARALELO LIMPIAS ---
+        function getNiceParallelTriplet() {
+            const triplets = [
+                {r1: 30, r2: 30, r3: 30, req: 10},
+                {r1: 60, r2: 60, r3: 60, req: 20},
+                {r1: 60, r2: 30, r3: 20, req: 10},
+                {r1: 40, r2: 40, r3: 20, req: 10},
+                {r1: 80, r2: 80, r3: 40, req: 20},
+                {r1: 30, r2: 15, r3: 10, req: 5}
+            ];
+            return triplets[Math.floor(Math.random() * triplets.length)];
+        }
+
+        // --- PAREJAS DE ASOCIACIÓN MIXTA LIMPIAS ---
+        function getNiceMixedPair() {
+            const pairs = [
+                {r1: 20, r2: 20, rp: 10},
+                {r1: 30, r2: 30, rp: 15},
+                {r1: 60, r2: 30, rp: 20},
+                {r1: 40, r2: 40, rp: 20},
+                {r1: 10, r2: 10, rp: 5},
+                {r1: 50, r2: 50, rp: 25}
+            ];
+            return pairs[Math.floor(Math.random() * pairs.length)];
+        }
+
+        // --- CREADOR DE FLECHAS INDICADORAS DE SENTIDO CONVENCIONAL EN 3D ---
+        function createCurrentArrow(position, rotationZ) {
+            const arrowGroup = new THREE.Group();
+            const coneGeo = new THREE.ConeGeometry(0.12, 0.25, 8);
+            const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff5400, depthWrite: true });
+            const cone = new THREE.Mesh(coneGeo, arrowMat);
+            cone.position.y = 0.1;
+            arrowGroup.add(cone);
+            
+            const shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8);
+            const shaft = new THREE.Mesh(shaftGeo, arrowMat);
+            shaft.position.y = -0.1;
+            arrowGroup.add(shaft);
+            
+            arrowGroup.position.copy(position);
+            arrowGroup.rotation.z = rotationZ;
+            return arrowGroup;
+        }
+
+        // --- DIBUJAR SEGMENTO DE CABLE (CILINDRO DE COBRE) ---
+        function createWireSegment(start, end) {
+            const distance = start.distanceTo(end);
+            const wireGeo = new THREE.CylinderGeometry(0.05, 0.05, distance, 8);
+            const wireMat = new THREE.MeshStandardMaterial({ 
+                color: 0xc2410c, 
+                roughness: 0.3, 
+                metalness: 0.8,
+                transparent: true,
+                opacity: 0.75 
+            });
+            const wire = new THREE.Mesh(wireGeo, wireMat);
+            
+            wire.position.copy(start).add(end).multiplyScalar(0.5);
+            wire.lookAt(end);
+            wire.rotateX(Math.PI / 2);
+            wireMeshGroup.add(wire);
+        }
+
+        // --- GENERACIÓN DE RUTAS DE ELECTRONES EN BASE AL MODO ACTIVO ---
+        function generateCircuitTopography() {
+            // Eliminar cables de la escena
+            while(wireMeshGroup.children.length > 0) {
+                const child = wireMeshGroup.children[0];
+                wireMeshGroup.remove(child);
+            }
+            
+            // Eliminar partículas
+            particlesArray.forEach(p => {
+                scene.remove(p.sprite);
+                p.sprite.geometry.dispose();
+                p.sprite.material.dispose();
+            });
+            particlesArray = [];
+
+            // Puntos absolutos de los bornes de origen
+            const srcPosBasic = new THREE.Vector3(-4.3, 1.0, 0); 
+            const srcNegBasic = new THREE.Vector3(-3.7, 1.0, 0);
+
+            const src1Pos = new THREE.Vector3(-4.8, 1.0, 0); 
+            const src1Neg = new THREE.Vector3(-4.2, 1.0, 0); 
+
+            if (currentSimulatorMode === "basic") {
+                const topo = displayedParameters.topology;
+                powerSource.position.set(-4.0, -0.4, 0);
+
+                if (topo === "SERIE") {
+                    resistor1.position.set(-1.5, 1.0, 0);
+                    resistor1.rotation.set(0, 0, 0);
+                    
+                    resistor2.position.set(1.0, 1.0, 0);
+                    resistor2.rotation.set(0, 0, 0);
+
+                    resistor3.position.set(3.5, 0.0, 0);
+                    resistor3.rotation.set(0, 0, Math.PI / 2);
+
+                    createWireSegment(srcPosBasic, new THREE.Vector3(-2.1, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(-0.9, 1.0, 0), new THREE.Vector3(0.4, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(1.6, 1.0, 0), new THREE.Vector3(3.5, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(3.5, 1.0, 0), new THREE.Vector3(3.5, 0.6, 0));
+                    createWireSegment(new THREE.Vector3(3.5, -0.6, 0), new THREE.Vector3(3.5, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(3.5, -1.0, 0), new THREE.Vector3(-3.7, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(-3.7, -1.0, 0), srcNegBasic);
+
+                    // Ruta ortogonal perfecta sin atajos en diagonal
+                    registerElectronRoute([
+                        srcPosBasic,
+                        new THREE.Vector3(-2.1, 1.0, 0),
+                        new THREE.Vector3(-1.5, 1.0, 0), // Centro R1
+                        new THREE.Vector3(-0.9, 1.0, 0),
+                        new THREE.Vector3(0.4, 1.0, 0),
+                        new THREE.Vector3(1.0, 1.0, 0),  // Centro R2
+                        new THREE.Vector3(1.6, 1.0, 0),
+                        new THREE.Vector3(3.5, 1.0, 0),
+                        new THREE.Vector3(3.5, 0.6, 0),
+                        new THREE.Vector3(3.5, 0.0, 0),  // Centro R3
+                        new THREE.Vector3(3.5, -0.6, 0),
+                        new THREE.Vector3(3.5, -1.0, 0),
+                        new THREE.Vector3(-3.7, -1.0, 0),
+                        srcNegBasic
+                    ], 16);
+
+                } else if (topo === "PARALELO") {
+                    resistor1.position.set(-1.5, 0.0, 0);
+                    resistor1.rotation.set(0, 0, Math.PI / 2);
+
+                    resistor2.position.set(0.5, 0.0, 0);
+                    resistor2.rotation.set(0, 0, Math.PI / 2);
+
+                    resistor3.position.set(2.5, 0.0, 0);
+                    resistor3.rotation.set(0, 0, Math.PI / 2);
+
+                    createWireSegment(srcPosBasic, new THREE.Vector3(2.5, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(-1.5, 1.0, 0), new THREE.Vector3(-1.5, 0.6, 0));
+                    createWireSegment(new THREE.Vector3(0.5, 1.0, 0), new THREE.Vector3(0.5, 0.6, 0));
+                    createWireSegment(new THREE.Vector3(2.5, 1.0, 0), new THREE.Vector3(2.5, 0.6, 0));
+
+                    createWireSegment(new THREE.Vector3(-1.5, -0.6, 0), new THREE.Vector3(-1.5, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(0.5, -0.6, 0), new THREE.Vector3(0.5, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(2.5, -0.6, 0), new THREE.Vector3(2.5, -1.0, 0));
+
+                    createWireSegment(new THREE.Vector3(-3.7, -1.0, 0), new THREE.Vector3(2.5, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(-3.7, -1.0, 0), srcNegBasic);
+
+                    // Rutas ortogonales perfectas para las tres ramas en paralelo
+                    registerElectronRoute([
+                        srcPosBasic, 
+                        new THREE.Vector3(-1.5, 1.0, 0), 
+                        new THREE.Vector3(-1.5, 0.6, 0), 
+                        new THREE.Vector3(-1.5, 0.0, 0), // Centro R1
+                        new THREE.Vector3(-1.5, -0.6, 0), 
+                        new THREE.Vector3(-1.5, -1.0, 0), 
+                        new THREE.Vector3(-3.7, -1.0, 0), 
+                        srcNegBasic
+                    ], 6);
+
+                    registerElectronRoute([
+                        srcPosBasic, 
+                        new THREE.Vector3(-1.5, 1.0, 0), 
+                        new THREE.Vector3(0.5, 1.0, 0), 
+                        new THREE.Vector3(0.5, 0.6, 0), 
+                        new THREE.Vector3(0.5, 0.0, 0),  // Centro R2
+                        new THREE.Vector3(0.5, -0.6, 0), 
+                        new THREE.Vector3(0.5, -1.0, 0), 
+                        new THREE.Vector3(-1.5, -1.0, 0), 
+                        new THREE.Vector3(-3.7, -1.0, 0), 
+                        srcNegBasic
+                    ], 6);
+
+                    registerElectronRoute([
+                        srcPosBasic, 
+                        new THREE.Vector3(-1.5, 1.0, 0), 
+                        new THREE.Vector3(0.5, 1.0, 0), 
+                        new THREE.Vector3(2.5, 1.0, 0), 
+                        new THREE.Vector3(2.5, 0.6, 0), 
+                        new THREE.Vector3(2.5, 0.0, 0),  // Centro R3
+                        new THREE.Vector3(2.5, -0.6, 0), 
+                        new THREE.Vector3(2.5, -1.0, 0), 
+                        new THREE.Vector3(0.5, -1.0, 0), 
+                        new THREE.Vector3(-1.5, -1.0, 0), 
+                        new THREE.Vector3(-3.7, -1.0, 0), 
+                        srcNegBasic
+                    ], 6);
+
+                } else if (topo === "MIXTO") {
+                    resistor1.position.set(-1.0, 0.5, 0);
+                    resistor1.rotation.set(0, 0, 0);
+
+                    resistor2.position.set(-1.0, -0.5, 0);
+                    resistor2.rotation.set(0, 0, 0);
+
+                    resistor3.position.set(2.0, 0.0, 0);
+                    resistor3.rotation.set(0, 0, 0);
+
+                    createWireSegment(srcPosBasic, new THREE.Vector3(-2.2, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(-2.2, 1.0, 0), new THREE.Vector3(-2.2, -0.5, 0));
+                    createWireSegment(new THREE.Vector3(-2.2, 0.5, 0), new THREE.Vector3(-1.6, 0.5, 0));
+                    createWireSegment(new THREE.Vector3(-2.2, -0.5, 0), new THREE.Vector3(-1.6, -0.5, 0));
+
+                    createWireSegment(new THREE.Vector3(-0.4, 0.5, 0), new THREE.Vector3(0.2, 0.5, 0));
+                    createWireSegment(new THREE.Vector3(-0.4, -0.5, 0), new THREE.Vector3(0.2, -0.5, 0));
+                    createWireSegment(new THREE.Vector3(0.2, 0.5, 0), new THREE.Vector3(0.2, -0.5, 0));
+
+                    createWireSegment(new THREE.Vector3(0.2, 0.0, 0), new THREE.Vector3(1.4, 0.0, 0));
+                    createWireSegment(new THREE.Vector3(2.6, 0.0, 0), new THREE.Vector3(3.5, 0.0, 0));
+                    createWireSegment(new THREE.Vector3(3.5, 0.0, 0), new THREE.Vector3(3.5, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(3.5, -1.0, 0), new THREE.Vector3(-3.7, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(-3.7, -1.0, 0), srcNegBasic);
+
+                    // Rutas ortogonales de mallas mixtas
+                    registerElectronRoute([
+                        srcPosBasic, 
+                        new THREE.Vector3(-2.2, 1.0, 0), 
+                        new THREE.Vector3(-2.2, 0.5, 0), 
+                        new THREE.Vector3(-1.6, 0.5, 0), 
+                        new THREE.Vector3(-1.0, 0.5, 0),  // Centro R1
+                        new THREE.Vector3(-0.4, 0.5, 0), 
+                        new THREE.Vector3(0.2, 0.5, 0), 
+                        new THREE.Vector3(0.2, 0.0, 0), 
+                        new THREE.Vector3(1.4, 0.0, 0), 
+                        new THREE.Vector3(2.0, 0.0, 0),  // Centro R3
+                        new THREE.Vector3(2.6, 0.0, 0), 
+                        new THREE.Vector3(3.5, 0.0, 0), 
+                        new THREE.Vector3(3.5, -1.0, 0), 
+                        new THREE.Vector3(-3.7, -1.0, 0), 
+                        srcNegBasic
+                    ], 7);
+
+                    registerElectronRoute([
+                        srcPosBasic, 
+                        new THREE.Vector3(-2.2, 1.0, 0), 
+                        new THREE.Vector3(-2.2, -0.5, 0), 
+                        new THREE.Vector3(-1.6, -0.5, 0), 
+                        new THREE.Vector3(-1.0, -0.5, 0), // Centro R2
+                        new THREE.Vector3(-0.4, -0.5, 0), 
+                        new THREE.Vector3(0.2, -0.5, 0), 
+                        new THREE.Vector3(0.2, 0.0, 0), 
+                        new THREE.Vector3(1.4, 0.0, 0), 
+                        new THREE.Vector3(2.0, 0.0, 0),  // Centro R3
+                        new THREE.Vector3(2.6, 0.0, 0), 
+                        new THREE.Vector3(3.5, 0.0, 0), 
+                        new THREE.Vector3(3.5, -1.0, 0), 
+                        new THREE.Vector3(-3.7, -1.0, 0), 
+                        srcNegBasic
+                    ], 7);
+                }
+
+            } else {
+                // --- TOPOLOGÍA AVANZADA KIRCHHOFF (SISTEMA DE DOBLE LAZO) ---
+                powerSource.position.set(-4.5, -0.4, 0); 
+                powerSource2.position.set(4.5, -0.4, 0);  
+
+                const src2Pos = new THREE.Vector3(4.8, 1.0, 0);  
+                const src2Neg = new THREE.Vector3(4.2, 1.0, 0);  
+
+                const topo = displayedParameters.topology;
+
+                if (topo === "SERIE") {
+                    resistor1.position.set(-2.0, 1.0, 0);
+                    resistor1.rotation.set(0, 0, 0);
+
+                    resistor2.position.set(2.0, 1.0, 0);
+                    resistor2.rotation.set(0, 0, 0);
+
+                    resistor3.position.set(0.0, -1.0, 0);
+                    resistor3.rotation.set(0, 0, 0);
+
+                    createWireSegment(src1Pos, new THREE.Vector3(-2.6, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(-1.4, 1.0, 0), new THREE.Vector3(1.4, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(2.6, 1.0, 0), src2Pos);
+
+                    createWireSegment(src2Neg, new THREE.Vector3(4.2, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(4.2, -1.0, 0), new THREE.Vector3(0.6, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(-0.6, -1.0, 0), new THREE.Vector3(-4.2, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(-4.2, -1.0, 0), src1Neg);
+
+                    // Indicadores de sentido de corriente convencional en bucle
+                    const arrowLoop1 = createCurrentArrow(new THREE.Vector3(-0.5, 1.0, 0), -Math.PI/2); 
+                    const arrowLoop2 = createCurrentArrow(new THREE.Vector3(2.0, -1.0, 0), Math.PI/2);  
+                    wireMeshGroup.add(arrowLoop1);
+                    wireMeshGroup.add(arrowLoop2);
+
+                    registerElectronRoute([
+                        src1Pos,
+                        new THREE.Vector3(-2.6, 1.0, 0),
+                        new THREE.Vector3(-2.0, 1.0, 0), // Centro R1
+                        new THREE.Vector3(-1.4, 1.0, 0),
+                        new THREE.Vector3(1.4, 1.0, 0),
+                        new THREE.Vector3(2.0, 1.0, 0),  // Centro R2
+                        new THREE.Vector3(2.6, 1.0, 0),
+                        src2Pos,
+                        src2Neg,
+                        new THREE.Vector3(4.2, -1.0, 0),
+                        new THREE.Vector3(0.6, -1.0, 0),
+                        new THREE.Vector3(0.0, -1.0, 0),  // Centro R3
+                        new THREE.Vector3(-0.6, -1.0, 0),
+                        new THREE.Vector3(-4.2, -1.0, 0),
+                        src1Neg
+                    ], 16);
+
+                } else if (topo === "PARALELO") {
+                    resistor1.position.set(-2.2, 0.0, 0);
+                    resistor1.rotation.set(0, 0, Math.PI / 2);
+
+                    resistor2.position.set(2.2, 0.0, 0);
+                    resistor2.rotation.set(0, 0, Math.PI / 2);
+
+                    resistor3.position.set(0.0, 0.0, 0);
+                    resistor3.rotation.set(0, 0, Math.PI / 2);
+
+                    createWireSegment(src1Pos, new THREE.Vector3(-2.2, 1.0, 0));
+                    createWireSegment(src2Pos, new THREE.Vector3(2.2, 1.0, 0));
+                    createWireSegment(new THREE.Vector3(-2.2, 1.0, 0), new THREE.Vector3(2.2, 1.0, 0)); 
+
+                    createWireSegment(new THREE.Vector3(-2.2, 1.0, 0), new THREE.Vector3(-2.2, 0.6, 0));
+                    createWireSegment(new THREE.Vector3(2.2, 1.0, 0), new THREE.Vector3(2.2, 0.6, 0));
+                    createWireSegment(new THREE.Vector3(0.0, 1.0, 0), new THREE.Vector3(0.0, 0.6, 0));
+
+                    createWireSegment(new THREE.Vector3(-2.2, -0.6, 0), new THREE.Vector3(-2.2, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(2.2, -0.6, 0), new THREE.Vector3(2.2, -1.0, 0));
+                    createWireSegment(new THREE.Vector3(0.0, -0.6, 0), new THREE.Vector3(0.0, -1.0, 0));
+
+                    createWireSegment(new THREE.Vector3(-4.2, -1.0, 0), new THREE.Vector3(4.2, -1.0, 0)); 
+                    createWireSegment(new THREE.Vector3(-4.2, -1.0, 0), src1Neg);
+                    createWireSegment(new THREE.Vector3(4.2, -1.0, 0), src2Neg);
+
+                    const arrowI1 = createCurrentArrow(new THREE.Vector3(-1.1, 1.0, 0), -Math.PI / 2); 
+                    const arrowI2 = createCurrentArrow(new THREE.Vector3(1.1, 1.0, 0), Math.PI / 2);   
+                    const arrowI3 = createCurrentArrow(new THREE.Vector3(0.0, 0.45, 0), Math.PI);      
+                    wireMeshGroup.add(arrowI1);
+                    wireMeshGroup.add(arrowI2);
+                    wireMeshGroup.add(arrowI3);
+
+                    registerElectronRoute([
+                        src1Pos, 
+                        new THREE.Vector3(-2.2, 1.0, 0), 
+                        new THREE.Vector3(0.0, 1.0, 0), 
+                        new THREE.Vector3(0.0, 0.6, 0), 
+                        new THREE.Vector3(0.0, 0.0, 0), // Centro R3
+                        new THREE.Vector3(0.0, -0.6, 0), 
+                        new THREE.Vector3(0.0, -1.0, 0), 
+                        new THREE.Vector3(-2.2, -1.0, 0), 
+                        new THREE.Vector3(-4.2, -1.0, 0), 
+                        src1Neg
+                    ], 8);
+
+                    registerElectronRoute([
+                        src2Pos, 
+                        new THREE.Vector3(2.2, 1.0, 0), 
+                        new THREE.Vector3(0.0, 1.0, 0), 
+                        new THREE.Vector3(0.0, 0.6, 0), 
+                        new THREE.Vector3(0.0, 0.0, 0), // Centro R3
+                        new THREE.Vector3(0.0, -0.6, 0), 
+                        new THREE.Vector3(0.0, -1.0, 0), 
+                        new THREE.Vector3(2.2, -1.0, 0), 
+                        new THREE.Vector3(4.2, -1.0, 0), 
+                        src2Neg
+                    ], 8);
+
+                } else if (topo === "MIXTO") {
+                    resistor1.position.set(-2.2, 1.0, 0); 
+                    resistor1.rotation.set(0, 0, 0);
+
+                    resistor2.position.set(2.2, 1.0, 0);  
+                    resistor2.rotation.set(0, 0, 0);
+
+                    resistor3.position.set(0.0, 0.0, 0);  
+                    resistor3.rotation.set(0, 0, Math.PI / 2);
+
+                    createWireSegment(src1Pos, new THREE.Vector3(-2.8, 1.0, 0)); 
+                    createWireSegment(new THREE.Vector3(-1.6, 1.0, 0), new THREE.Vector3(0.0, 1.0, 0)); 
+
+                    createWireSegment(src2Pos, new THREE.Vector3(2.8, 1.0, 0)); 
+                    createWireSegment(new THREE.Vector3(1.6, 1.0, 0), new THREE.Vector3(0.0, 1.0, 0)); 
+
+                    createWireSegment(new THREE.Vector3(0.0, 1.0, 0), new THREE.Vector3(0.0, 0.6, 0)); 
+                    createWireSegment(new THREE.Vector3(0.0, -0.6, 0), new THREE.Vector3(0.0, -1.0, 0)); 
+
+                    createWireSegment(new THREE.Vector3(-4.2, -1.0, 0), new THREE.Vector3(4.2, -1.0, 0)); 
+                    
+                    createWireSegment(new THREE.Vector3(-4.2, -1.0, 0), src1Neg); 
+                    createWireSegment(new THREE.Vector3(4.2, -1.0, 0), src2Neg);  
+
+                    const arrowI1 = createCurrentArrow(new THREE.Vector3(-1.1, 1.0, 0), -Math.PI / 2); 
+                    const arrowI2 = createCurrentArrow(new THREE.Vector3(1.1, 1.0, 0), Math.PI / 2);   
+                    const arrowI3 = createCurrentArrow(new THREE.Vector3(0.0, 0.45, 0), Math.PI);      
+                    wireMeshGroup.add(arrowI1);
+                    wireMeshGroup.add(arrowI2);
+                    wireMeshGroup.add(arrowI3);
+
+                    registerElectronRoute([
+                        src1Pos, 
+                        new THREE.Vector3(-2.8, 1.0, 0), 
+                        new THREE.Vector3(-2.2, 1.0, 0), // Centro R1
+                        new THREE.Vector3(-1.6, 1.0, 0), 
+                        new THREE.Vector3(0.0, 1.0, 0), 
+                        new THREE.Vector3(0.0, 0.6, 0), 
+                        new THREE.Vector3(0.0, 0.0, 0),   // Centro R3
+                        new THREE.Vector3(0.0, -0.6, 0), 
+                        new THREE.Vector3(0.0, -1.0, 0), 
+                        new THREE.Vector3(-4.2, -1.0, 0), 
+                        src1Neg
+                    ], 8);
+
+                    registerElectronRoute([
+                        src2Pos, 
+                        new THREE.Vector3(2.8, 1.0, 0), 
+                        new THREE.Vector3(2.2, 1.0, 0),  // Centro R2
+                        new THREE.Vector3(1.6, 1.0, 0), 
+                        new THREE.Vector3(0.0, 1.0, 0), 
+                        new THREE.Vector3(0.0, 0.6, 0), 
+                        new THREE.Vector3(0.0, 0.0, 0),   // Centro R3
+                        new THREE.Vector3(0.0, -0.6, 0), 
+                        new THREE.Vector3(0.0, -1.0, 0), 
+                        new THREE.Vector3(4.2, -1.0, 0), 
+                        src2Neg
+                    ], 8);
+                }
+            }
+
+            // Aplicar código de colores actual a las resistencias
+            applyColorBands(resistor1, displayedParameters.R1);
+            applyColorBands(resistor2, displayedParameters.R2);
+            applyColorBands(resistor3, displayedParameters.R3);
+
+            // Actualizar posiciones de etiquetas en base al modo activo
+            update3DLabelPlacements();
+        }
+
+        // --- REGISTRAR ELECTRONES EN MOVIMIENTO (LINE SEGMENTS SEGUROS) ---
+        function registerElectronRoute(pointsArray, count = 10) {
+            const curvePath = new THREE.CurvePath();
+            for (let i = 0; i < pointsArray.length - 1; i++) {
+                curvePath.add(new THREE.LineCurve3(pointsArray[i], pointsArray[i+1]));
+            }
+            
+            const colorHex = currentFlowMode === "real" ? 0x00ffcc : 0xff5400;
+
+            for (let i = 0; i < count; i++) {
+                const spriteMat = new THREE.SpriteMaterial({
+                    color: colorHex,
+                    transparent: true,
+                    opacity: 0.95,
+                    map: generateGlowTexture(),
+                    depthWrite: false, 
+                    blending: THREE.AdditiveBlending 
+                });
+                const particle = new THREE.Sprite(spriteMat);
+                particle.scale.set(0.14, 0.14, 1);
+                
+                const initialProgress = i / count;
+                particlesArray.push({
+                    sprite: particle,
+                    curve: curvePath,
+                    progress: initialProgress
+                });
+                scene.add(particle);
+            }
+        }
+
+        function generateGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(8, 8, 1, 8, 8, 8);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.3, 'rgba(255, 255, 255, 0.9)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 16, 16);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- EFECTO DE CHISPAS EN SOPORTES POR CORTOCIRCUITO ---
+        function createSparks(position) {
+            sfx.playExplosion();
+            
+            const colors = [0xffea00, 0xff7700, 0xff0000];
+            const count = 35;
+            
+            for (let i = 0; i < count; i++) {
+                const geo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0.15, 0)
+                ]);
+                const mat = new THREE.LineBasicMaterial({
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    linewidth: 2
+                });
+                const spark = new THREE.Line(geo, mat);
+                
+                spark.position.copy(position);
+                
+                const force = 4.0 + Math.random() * 5.0;
+                const angleY = Math.random() * Math.PI * 2;
+                const angleXZ = (Math.random() - 0.5) * Math.PI;
+
+                const vel = new THREE.Vector3(
+                    Math.cos(angleY) * Math.cos(angleXZ) * force,
+                    Math.sin(angleXZ) * force + 2.0, 
+                    Math.sin(angleY) * Math.cos(angleXZ) * force
+                );
+
+                sparkParticles.push({
+                    mesh: spark,
+                    vel: vel,
+                    life: 0.6 + Math.random() * 0.4
+                });
+                scene.add(spark);
+            }
+        }
+
+        // --- ANIMAR FLUJO DE ELECTRONES ---
+        function updateElectrons(dt) {
+            let speed1 = (displayedParameters.I1 || displayedParameters.Itot || 1.0) * 0.18;
+            let speed2 = (displayedParameters.I2 || 1.0) * 0.18;
+
+            // En modo Básico o Kirchhoff:
+            // - Modo Real (Electrones): viajan de polo negativo a positivo (reversa en el progreso)
+            // - Modo Convencional: viajan de polo positivo a negativo (avance estándar del progreso)
+            if (currentFlowMode === "real") {
+                speed1 = -speed1;
+                speed2 = -speed2;
+            }
+
+            const currentSpeedMultiplier1 = isShortCircuited ? 0 : speed1;
+            const currentSpeedMultiplier2 = isShortCircuited ? 0 : speed2;
+
+            particlesArray.forEach((p, idx) => {
+                let multiplier = (idx % 2 === 0) ? currentSpeedMultiplier1 : currentSpeedMultiplier2;
+                
+                if (currentSimulatorMode === "basic") {
+                    multiplier = currentSpeedMultiplier1;
+                }
+
+                p.progress += dt * multiplier;
+                
+                if (p.progress > 1.0) p.progress -= 1.0;
+                if (p.progress < 0.0) p.progress += 1.0;
+                
+                const pos = p.curve.getPointAt(p.progress);
+                p.sprite.position.copy(pos);
+            });
+        }
+
+        // --- ANIMAR CHISPAS EN TIEMPO REAL ---
+        function updateSparks(dt) {
+            for (let i = sparkParticles.length - 1; i >= 0; i--) {
+                const s = sparkParticles[i];
+                s.mesh.position.addScaledVector(s.vel, dt);
+                s.vel.y -= 9.8 * dt; 
+                
+                s.life -= dt;
+                if (s.life <= 0) {
+                    scene.remove(s.mesh);
+                    s.mesh.geometry.dispose();
+                    s.mesh.material.dispose();
+                    sparkParticles.splice(i, 1);
+                }
+            }
+        }
+
+        // --- POSICIONAR LAS ETIQUETAS FLOTANTES EN 3D (Optimizado para encuadre vertical) ---
+        function update3DLabelPlacements() {
+            if (currentSimulatorMode === "basic") {
+                // Ocultar etiquetas avanzadas de Kirchhoff
+                labelVsrc2.visible = false;
+                labelVnode.visible = false;
+                labelI1.visible = false;
+                labelI2.visible = false;
+                labelI3.visible = false;
+
+                // Mostrar etiquetas clásicas de Ohm
+                labelVsrc.visible = true;
+                labelItot.visible = true;
+
+                const topo = displayedParameters.topology;
+                if (topo === "SERIE") {
+                    labelR1.position.set(-1.5, 1.45, 0.3);
+                    labelR2.position.set(1.0, 1.45, 0.3);
+                    labelR3.position.set(4.4, 0.0, 0.3);
+                } else if (topo === "PARALELO") {
+                    labelR1.position.set(-2.2, 0.0, 0.3);
+                    labelR2.position.set(-0.2, 0.0, 0.3);
+                    labelR3.position.set(1.8, 0.0, 0.3);
+                } else if (topo === "MIXTO") {
+                    labelR1.position.set(-1.0, 0.95, 0.3);
+                    labelR2.position.set(-1.0, -0.95, 0.3);
+                    labelR3.position.set(2.0, 0.45, 0.3);
+                }
+                labelVsrc.position.set(-4.0, 1.9, 0.3);
+                labelItot.position.set(-2.2, -1.45, 0.3);
+
+                // Polaridades de la fuente clásica
+                labelPos.position.set(-4.3, 1.45, 0.3);
+                labelNeg.position.set(-3.7, 1.45, 0.3);
+                labelPos.visible = true;
+                labelNeg.visible = true;
+
+            } else {
+                // --- POSICIONAMIENTO AVANZADO KIRCHHOFF (Centrado y ajustado para no salirse de pantalla) ---
+                labelItot.visible = false; 
+
+                // Mostrar etiquetas avanzadas
+                labelVsrc2.visible = true;
+                labelVnode.visible = true;
+                labelI1.visible = true;
+                labelI2.visible = true;
+                labelI3.visible = true;
+                labelVsrc.visible = true;
+
+                const topo = displayedParameters.topology;
+
+                if (topo === "SERIE") {
+                    labelR1.position.set(-2.0, 1.45, 0.3);
+                    labelR2.position.set(2.0, 1.45, 0.3);
+                    labelR3.position.set(0.0, -1.45, 0.3);
+
+                    labelVsrc.position.set(-4.5, 1.9, 0.3);
+                    labelVsrc2.position.set(4.5, 1.9, 0.3);
+
+                    // Ocultar etiquetas nódales irrelevantes en serie
+                    labelVnode.visible = false;
+                    labelI1.visible = false;
+                    labelI2.visible = false;
+                    labelI3.position.set(0.0, -0.4, 0.3); // Mostrar corriente uniforme abajo
+                } else if (topo === "PARALELO") {
+                    labelR1.position.set(-3.1, 0.0, 0.3);
+                    labelR2.position.set(3.1, 0.0, 0.3);
+                    labelR3.position.set(0.8, -0.3, 0.3);
+
+                    labelVsrc.position.set(-4.5, 1.9, 0.3);
+                    labelVsrc2.position.set(4.5, 1.9, 0.3);
+                    labelVnode.position.set(0.0, 1.45, 0.3);
+
+                    labelI1.position.set(-2.2, 0.4, 0.3);
+                    labelI2.position.set(2.2, 0.4, 0.3);
+                    labelI3.position.set(-0.8, -0.3, 0.3);
+                } else if (topo === "MIXTO") {
+                    labelR1.position.set(-2.2, 1.45, 0.3);
+                    labelR2.position.set(2.2, 1.45, 0.3);
+                    labelR3.position.set(0.8, -0.3, 0.3);
+
+                    labelVsrc.position.set(-4.5, 1.9, 0.3);
+                    labelVsrc2.position.set(4.5, 1.9, 0.3);
+                    labelVnode.position.set(0.0, 1.45, 0.3);
+
+                    labelI1.position.set(-2.2, 0.4, 0.3);
+                    labelI2.position.set(2.2, 0.4, 0.3);
+                    labelI3.position.set(-0.8, -0.3, 0.3);
+                }
+
+                // Ocultar polaridades individuales de bornes para evitar contaminación visual
+                labelPos.visible = false;
+                labelNeg.visible = false;
+            }
+
+            update3DLabelsText();
+        }
+
+        // --- ASIGNAR TEXTOS A LAS ETIQUETAS HOLOGRÁFICAS ---
+        function update3DLabelsText() {
+            if (currentSimulatorMode === "basic") {
+                // ACTUALIZACIONES MODO BÁSICO
+                const isMissingR1 = (missingVariableType === "R1");
+                const textR1 = (isMissingR1 && !gameState.solved) ? "R₁ = ?? Ω" : `R₁ = ${displayedParameters.R1.toFixed(0)} Ω`;
+                updateSpriteText(labelR1, textR1, '#ef4444', isMissingR1 && gameState.solved);
+
+                const isMissingR2 = (missingVariableType === "R2");
+                const textR2 = (isMissingR2 && !gameState.solved) ? "R₂ = ?? Ω" : `R₂ = ${displayedParameters.R2.toFixed(0)} Ω`;
+                updateSpriteText(labelR2, textR2, '#3b82f6', isMissingR2 && gameState.solved);
+
+                const isMissingR3 = (missingVariableType === "R3");
+                const textR3 = (isMissingR3 && !gameState.solved) ? "R₃ = ?? Ω" : `R₃ = ${displayedParameters.R3.toFixed(0)} Ω`;
+                updateSpriteText(labelR3, textR3, '#eab308', isMissingR3 && gameState.solved);
+
+                const isMissingV = (missingVariableType === "Vsrc");
+                const textV = (isMissingV && !gameState.solved) ? "V_f = ?? V" : `V_f = ${displayedParameters.Vsrc.toFixed(1)} V`;
+                updateSpriteText(labelVsrc, textV, '#10b981', isMissingV && gameState.solved);
+
+                const isMissingI = (missingVariableType === "Itot");
+                const textI = (isMissingI && !gameState.solved) ? "I_tot = ?? A" : `I_tot = ${displayedParameters.Itot.toFixed(1)} A`;
+                updateSpriteText(labelItot, textI, '#06b6d4', isMissingI && gameState.solved);
+
+            } else {
+                // --- ACTUALIZACIONES MODO KIRCHHOFF (AVANZADO) ---
+                const isMissingR1 = (missingVariableType === "R1");
+                const textR1 = (isMissingR1 && !gameState.solved) ? "R₁ = ?? Ω" : `R₁ = ${displayedParameters.R1.toFixed(0)} Ω`;
+                updateSpriteText(labelR1, textR1, '#ef4444', isMissingR1 && gameState.solved);
+
+                const isMissingR2 = (missingVariableType === "R2");
+                const textR2 = (isMissingR2 && !gameState.solved) ? "R₂ = ?? Ω" : `R₂ = ${displayedParameters.R2.toFixed(0)} Ω`;
+                updateSpriteText(labelR2, textR2, '#3b82f6', isMissingR2 && gameState.solved);
+
+                const isMissingR3 = (missingVariableType === "R3");
+                const textR3 = (isMissingR3 && !gameState.solved) ? "R₃ = ?? Ω" : `R₃ = ${displayedParameters.R3.toFixed(0)} Ω`;
+                updateSpriteText(labelR3, textR3, '#eab308', isMissingR3 && gameState.solved);
+
+                // Fuente 1
+                const isMissingV1 = (missingVariableType === "Vsrc");
+                const textV1 = (isMissingV1 && !gameState.solved) ? "V_f1 = ?? V" : `V_f1 = ${displayedParameters.Vsrc.toFixed(1)} V`;
+                updateSpriteText(labelVsrc, textV1, '#10b981', isMissingV1 && gameState.solved);
+
+                // Fuente 2
+                const isMissingV2 = (missingVariableType === "Vsrc2");
+                const textV2 = (isMissingV2 && !gameState.solved) ? "V_f2 = ?? V" : `V_f2 = ${displayedParameters.Vsrc2.toFixed(1)} V`;
+                updateSpriteText(labelVsrc2, textV2, '#a855f7', isMissingV2 && gameState.solved);
+
+                // Voltaje de Nodo Central Vn
+                const isMissingVn = (missingVariableType === "Vnode");
+                const textVn = (isMissingVn && !gameState.solved) ? "V_n = ?? V" : `V_n = ${displayedParameters.Vnode.toFixed(1)} V`;
+                updateSpriteText(labelVnode, textVn, '#f43f5e', isMissingVn && gameState.solved);
+
+                const isSerie = displayedParameters.topology === "SERIE";
+
+                // Corrientes de rama I1, I2, I3 con indicadores de sentido convencional explícitos
+                const isMissingI1 = (missingVariableType === "I1");
+                const textI1 = (isMissingI1 && !gameState.solved) ? "I₁ (→) = ?? A" : `I₁ (→) = ${displayedParameters.I1.toFixed(1)} A`;
+                updateSpriteText(labelI1, textI1, '#06b6d4', isMissingI1 && gameState.solved);
+
+                const isMissingI2 = (missingVariableType === "I2");
+                const textI2 = (isMissingI2 && !gameState.solved) ? "I₂ (←) = ?? A" : `I₂ (←) = ${displayedParameters.I2.toFixed(1)} A`;
+                updateSpriteText(labelI2, textI2, '#06b6d4', isMissingI2 && gameState.solved);
+
+                const isMissingI3 = (missingVariableType === "I3");
+                const textI3 = (isMissingI3 && !gameState.solved) 
+                    ? (isSerie ? "I_loop = ?? A" : "I₃ (↓) = ?? A") 
+                    : (isSerie ? `I_loop = ${displayedParameters.I3.toFixed(1)} A` : `I₃ (↓) = ${displayedParameters.I3.toFixed(1)} A`);
+                updateSpriteText(labelI3, textI3, '#06b6d4', isMissingI3 && gameState.solved);
+            }
+        }
+
+        // --- CÁMARAS CINEMATOGRÁFICAS (Encuadres de origen centrados en Y = 0.0) ---
+        function changeCamera(mode) {
+            if (!controls) return;
+            controls.enabled = false;
+
+            const targetPos = new THREE.Vector3();
+            const lookAtTarget = new THREE.Vector3(0, 0, 0);
+            
+            switch (mode) {
+                case "frontal":
+                    targetPos.set(0, 0, 9.5);
+                    lookAtTarget.set(0, 0, 0);
+                    break;
+                case "isometrica":
+                    targetPos.set(5.5, 3.5, 6.5);
+                    lookAtTarget.set(0, 0, 0);
+                    break;
+                case "componente":
+                    const posR3 = resistor3.position;
+                    targetPos.set(posR3.x, posR3.y + 0.5, 2.5);
+                    lookAtTarget.copy(posR3);
+                    break;
+                case "libre":
+                default:
+                    targetPos.set(-3.5, 2.8, 7.5);
+                    lookAtTarget.set(0, 0, 0);
+                    controls.enabled = true;
+                    break;
+            }
+
+            const startPos = camera.position.clone();
+            const startLook = controls.target.clone();
+            const duration = 1000;
+            const startTime = performance.now();
+
+            function easeInOutCubic(t) {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            }
+
+            function step(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease = easeInOutCubic(progress);
+
+                camera.position.lerpVectors(startPos, targetPos, ease);
+                controls.target.lerpVectors(startLook, lookAtTarget, ease);
+                camera.lookAt(controls.target);
+
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    if (mode === "libre") controls.enabled = true;
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        // --- CAMBIAR TAMAÑO DE LA VENTANA ---
+        function onWindowResize() {
+            const container = document.getElementById("canvas-container");
+            if (!container || !camera || !renderer) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // --- OCULTAR / MOSTRAR BARRA LATERAL ---
+        let isPanelHidden = false;
+        function toggleSidebar() {
+            sfx.playTick();
+            const panel = document.getElementById("side-panel");
+            const btn = document.getElementById("togglePanelBtn");
+            const icon = document.getElementById("toggleIcon");
+            
+            isPanelHidden = !isPanelHidden;
+            if (isPanelHidden) {
+                panel.style.transform = "translateX(-245px)";
+                btn.style.left = "12px";
+                icon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                `;
+            } else {
+                panel.style.transform = "translateX(0px)";
+                btn.style.left = "236px";
+                icon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                `;
+            }
+        }
+
+        // --- CAJÓN MÓVIL ---
+        let isMobileDrawerOpen = false;
+        function toggleMobileDrawer() {
+            isMobileDrawerOpen = !isMobileDrawerOpen;
+            const wrapper = document.getElementById('panels-wrapper');
+            const text = document.getElementById('mobile-drawer-text');
+            const icon = document.getElementById('mobile-drawer-icon');
+
+            if (isMobileDrawerOpen) {
+                wrapper.classList.add('drawer-open');
+                text.textContent = 'Ocultar Panel';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>`;
+            } else {
+                wrapper.classList.remove('drawer-open');
+                text.textContent = 'Ver Circuito y Resolver';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>`;
+            }
+        }
+
+        function openMobileDrawer() {
+            if (window.innerWidth <= 768 && !isMobileDrawerOpen) toggleMobileDrawer();
+        }
+        function closeMobileDrawer() {
+            if (window.innerWidth <= 768 && isMobileDrawerOpen) toggleMobileDrawer();
+        }
+
+        // --- RENDERIZAR PARÁMETROS EN EL MENÚ LATERAL ---
+        function showUIProblem() {
+            const varsDiv = document.getElementById("variables-dadas");
+            varsDiv.innerHTML = "";
+
+            const keysToUse = (currentSimulatorMode === "basic") ? basicVariableKeys : advancedVariableKeys;
+            const metaToUse = (currentSimulatorMode === "basic") ? basicVariableMeta : advancedVariableMeta;
+
+            keysToUse.forEach(key => {
+                const meta = metaToUse[key];
+                const value = displayedParameters[key];
+
+                // Ocultar potencial de nodo central en serie avanzada (no aplica)
+                if (currentSimulatorMode === "advanced" && displayedParameters.topology === "SERIE" && (key === "Vnode" || key === "I1" || key === "I2")) {
+                    return; 
+                }
+
+                if (key !== missingVariableType) {
+                    const formatedVal = (key === "Itot" || key === "I1" || key === "I2" || key === "I3" || key === "Vnode" || key === "Vsrc" || key === "Vsrc2") 
+                        ? value.toFixed(1) 
+                        : value.toFixed(0);
+                    varsDiv.innerHTML += `
+                        <div class="bg-gray-950/60 border border-gray-800/80 flex justify-between items-center px-2.5 py-1.5 rounded-lg">
+                            <span class="text-[8px] text-gray-400 font-bold uppercase tracking-wider">${meta.label}</span>
+                            <span class="font-orbitron font-black text-[10px] text-yellow-400 leading-none">${formatedVal} <span class="text-[8px] text-gray-300 font-sans">${meta.unit}</span></span>
+                        </div>
+                    `;
+                } else {
+                    let customLabel = meta.label;
+                    if (currentSimulatorMode === "advanced" && displayedParameters.topology === "SERIE" && key === "I3") {
+                        customLabel = "Corriente Única de Bucle";
+                    }
+                    document.getElementById("input-title").textContent = `Calcula: ${customLabel}`;
+                    document.getElementById("unit-label").textContent = meta.unit;
+                    document.getElementById("manual-input").value = "";
+                }
+            });
+
+            // Actualizar etiqueta del badge superior
+            const badgeEl = document.getElementById("circuit-type-badge");
+            if (currentSimulatorMode === "basic") {
+                badgeEl.textContent = displayedParameters.topology;
+                badgeEl.className = "font-orbitron text-[10px] font-black uppercase text-yellow-300 bg-yellow-950/40 px-2 py-0.5 rounded border border-yellow-500/20 inline-block leading-none";
+            } else {
+                badgeEl.textContent = `KIRCHHOFF (${displayedParameters.topology})`;
+                badgeEl.className = "font-orbitron text-[10px] font-black uppercase text-purple-300 bg-purple-950/40 px-2 py-0.5 rounded border border-purple-500/20 inline-block leading-none";
+            }
+
+            if (attemptPhase === 1) {
+                document.getElementById("manual-input-wrapper").classList.remove("hidden");
+                document.getElementById("options-container").classList.add("hidden");
+                document.getElementById("manual-input").focus();
+            } else {
+                document.getElementById("manual-input-wrapper").classList.add("hidden");
+                document.getElementById("options-container").classList.remove("hidden");
+                generateMultipleChoices();
+            }
+
+            document.getElementById("phase-badge").textContent = attemptPhase + " / 3";
+            document.getElementById("score-display").textContent = currentScore;
+            document.getElementById("checkBtn").disabled = false;
+        }
+
+        // --- GENERACIÓN DINÁMICA DE OPCIONES MULTIPLES ---
+        function generateMultipleChoices() {
+            const container = document.getElementById("options-container");
+            container.innerHTML = "";
+
+            const isCurrent = (missingVariableType === "Itot" || missingVariableType === "I1" || missingVariableType === "I2" || missingVariableType === "I3" || missingVariableType === "Vnode");
+
+            if (currentOptions.length === 0) {
+                const set = new Set();
+                set.add(correctAnswer);
+
+                const count = attemptPhase === 2 ? 4 : 2;
+                let attempts = 0;
+
+                while (set.size < count && attempts < 200) {
+                    attempts++;
+                    const deviationMultiplier = 0.55 + Math.random() * 0.9;
+                    let fakeVal = isCurrent 
+                        ? parseFloat((correctAnswer * deviationMultiplier).toFixed(1))
+                        : Math.round(correctAnswer * deviationMultiplier);
+
+                    if (fakeVal <= 0) {
+                        fakeVal = isCurrent 
+                            ? parseFloat((correctAnswer + (Math.random() * 0.5 + 0.1)).toFixed(1))
+                            : Math.round(correctAnswer + (Math.random() * 10 + 2));
+                    }
+
+                    let clearGap = true;
+                    for (let existing of set) {
+                        if (Math.abs(fakeVal - existing) < (isCurrent ? 0.2 : 5)) {
+                            clearGap = false;
+                            break;
+                        }
+                    }
+                    if (clearGap) set.add(fakeVal);
+                }
+
+                // Fallback de seguridad
+                let fallbackOffset = isCurrent ? 0.3 : 10;
+                while (set.size < count) {
+                    let valPositive = isCurrent 
+                        ? parseFloat((correctAnswer + fallbackOffset).toFixed(1))
+                        : Math.round(correctAnswer + fallbackOffset);
+                    let valNegative = isCurrent 
+                        ? parseFloat((correctAnswer - fallbackOffset).toFixed(1))
+                        : Math.round(correctAnswer - fallbackOffset);
+                    
+                    if (valPositive > 0) {
+                        let ok = true;
+                        for (let existing of set) {
+                            if (Math.abs(valPositive - existing) < (isCurrent ? 0.19 : 4.9)) ok = false;
+                        }
+                        if (ok) set.add(valPositive);
+                    }
+                    if (set.size < count && valNegative > 0) {
+                        let ok = true;
+                        for (let existing of set) {
+                            if (Math.abs(valNegative - existing) < (isCurrent ? 0.19 : 4.9)) ok = false;
+                        }
+                        if (ok) set.add(valNegative);
+                    }
+                    fallbackOffset += isCurrent ? 0.3 : 10;
+                }
+
+                currentOptions = Array.from(set).sort(() => Math.random() - 0.5);
+            }
+
+            currentOptions.forEach((opt, idx) => {
+                const metaToUse = (currentSimulatorMode === "basic") ? basicVariableMeta : advancedVariableMeta;
+                const unitText = metaToUse[missingVariableType].unit;
+                const labelText = isCurrent ? opt.toFixed(1) : opt.toFixed(0);
+
+                container.innerHTML += `
+                    <div class="flex items-center justify-between bg-yellow-400 hover:bg-yellow-300 text-black px-2.5 py-1 rounded-lg cursor-pointer transition-all border border-yellow-500/30 shadow shadow-yellow-400/10 text-[9.5px] h-[24px]" onclick="document.getElementById('opt-radio-${idx}').checked=true; selectOption(this)">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" id="opt-radio-${idx}" name="optionGroup" value="${opt}" class="w-3.5 h-3.5 accent-yellow-900 cursor-pointer">
+                            <span class="font-orbitron text-[11px] text-black font-black leading-none">${labelText}</span>
+                        </div>
+                        <span class="text-[7.5px] text-yellow-950 font-bold font-orbitron uppercase tracking-wider leading-none">${unitText}</span>
+                    </div>
+                `;
+            });
+        }
+
+        function selectOption(el) {
+            sfx.playTick();
+            const siblings = el.parentNode.children;
+            for (let sibling of siblings) {
+                sibling.classList.remove("border-yellow-600", "bg-yellow-300", "ring-1", "ring-yellow-500");
+                sibling.classList.add("border-yellow-500/30", "bg-yellow-400");
+            }
+            el.classList.remove("border-yellow-500/30", "bg-yellow-400");
+            el.classList.add("border-yellow-600", "bg-yellow-300", "ring-1", "ring-yellow-500");
+        }
+
+        function getUserAnswer() {
+            if (attemptPhase === 1) {
+                const val = parseFloat(document.getElementById("manual-input").value);
+                if (isNaN(val) || val <= 0) {
+                    showFeedback("Ingresa una respuesta positiva válida.", "text-yellow-400");
+                    return null;
+                }
+                return val;
+            } else {
+                const selected = document.querySelector('input[name="optionGroup"]:checked');
+                if (!selected) {
+                    showFeedback("Selecciona una de las alternativas.", "text-yellow-400");
+                    return null;
+                }
+                return parseFloat(selected.value);
+            }
+        }
+
+        // --- VERIFICAR LA RESPUESTA FÍSICA ---
+        function triggerVerify() {
+            closeMobileDrawer();
+            const userVal = getUserAnswer();
+            if (userVal === null || isNaN(userVal)) return;
+
+            const isCorrect = Math.abs(userVal - correctAnswer) <= ABS_TOLERANCE;
+            const metaToUse = (currentSimulatorMode === "basic") ? basicVariableMeta : advancedVariableMeta;
+            const meta = metaToUse[missingVariableType];
+
+            document.getElementById("checkBtn").disabled = true;
+
+            if (isCorrect) {
+                let pts = 0;
+                let message = "";
+                if (attemptPhase === 1) { pts = 100; message = "¡SISTEMA EN EQUILIBRIO PERFECTO! +100 PTS"; }
+                else if (attemptPhase === 2) { pts = 50; message = "¡BUEN TRABAJO! +50 PTS"; }
+                else { pts = 20; message = "¡EQUILIBRADO! +20 PTS"; }
+
+                sfx.playSuccess();
+                currentScore += pts;
+                document.getElementById("score-display").textContent = currentScore;
+                showFeedback(message, "text-green-400 tracking-wider font-extrabold animate-bounce");
+                
+                const isCurrent = (missingVariableType === "Itot" || missingVariableType === "I1" || missingVariableType === "I2" || missingVariableType === "I3" || missingVariableType === "Vnode" || missingVariableType === "Vsrc" || missingVariableType === "Vsrc2");
+                const formatCorrectText = isCurrent ? correctAnswer.toFixed(1) : correctAnswer.toFixed(0);
+                document.getElementById("correct-answer-display").textContent = `Respuesta exacta: ${formatCorrectText} ${meta.unit}`;
+                
+                gameState.solved = true;
+                update3DLabelsText();
+
+                // Cambiar el color de los electrones a verde brillante al acertar
+                particlesArray.forEach(p => p.sprite.material.color.setHex(0x10b981));
+
+                changeCamera("componente");
+                openMobileDrawer();
+            } else {
+                sfx.playFailure();
+                
+                // --- ACTIVAR DINÁMICA DE CORTOCIRCUITO ---
+                isShortCircuited = true;
+                shortCircuitTime = 0;
+
+                const sparkPos = resistor3.position.clone();
+                createSparks(sparkPos);
+
+                const burntMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+                resistor3.children[0].material = burntMaterial;
+
+                changeCamera("frontal"); 
+
+                attemptPhase++;
+                currentOptions = [];
+
+                pendingFailureAction = function() {
+                    // Restaurar la resistencia afectada a su color original
+                    resistor3.children[0].material = new THREE.MeshStandardMaterial({ color: 0xdfcbaf, roughness: 0.4 });
+                    applyColorBands(resistor3, displayedParameters.R3);
+
+                    if (attemptPhase === 2) {
+                        showFeedback("¡Cortocircuito! Intenta nuevamente con opciones múltiples.", "text-yellow-400");
+                        showUIProblem();
+                        openMobileDrawer();
+                    } else if (attemptPhase === 3) {
+                        showFeedback("¡Sobrecarga! Intento final con ayuda de opción 50/50.", "text-yellow-400");
+                        
+                        const isCurrent = (missingVariableType === "Itot" || missingVariableType === "I1" || missingVariableType === "I2" || missingVariableType === "I3" || missingVariableType === "Vnode");
+                        currentOptions = [correctAnswer, parseFloat((correctAnswer * (0.5 + Math.random() * 0.9)).toFixed(isCurrent ? 1 : 0))].sort(() => Math.random() - 0.5);
+                        showUIProblem();
+                        openMobileDrawer();
+                    } else {
+                        showFeedback(`Falla de fusibles. El sistema colapsó.`, "text-red-500 font-extrabold");
+                        
+                        const isCurrent = (missingVariableType === "Itot" || missingVariableType === "I1" || missingVariableType === "I2" || missingVariableType === "I3" || missingVariableType === "Vnode" || missingVariableType === "Vsrc" || missingVariableType === "Vsrc2");
+                        const formatCorrectText = isCurrent ? correctAnswer.toFixed(1) : correctAnswer.toFixed(0);
+                        document.getElementById("correct-answer-display").textContent = `Respuesta correcta: ${formatCorrectText} ${meta.unit}`;
+                        
+                        gameState.solved = true;
+                        update3DLabelsText();
+                        changeCamera("componente");
+                    }
+                };
+            }
+        }
+
+        function showFeedback(text, colorClass = "text-yellow-400") {
+            const fb = document.getElementById("feedback");
+            if (fb) {
+                fb.className = `text-[9.5px] font-bold ${colorClass} leading-tight`;
+                fb.textContent = text;
+            }
+        }
+
+        // --- REINICIAR / SIGUIENTE EJERCICIO ---
+        function resetExercise() {
+            attemptPhase = 1;
+            currentOptions = [];
+            gameState.solved = false;
+            isShortCircuited = false;
+            pendingFailureAction = null;
+            document.getElementById("correct-answer-display").textContent = "";
+            showFeedback("Nuevo circuito generado. ¡Calcula los parámetros!", "text-yellow-400");
+
+            if (currentSimulatorMode === "basic") {
+                generateValidProblem();
+            } else {
+                generateAdvancedProblem();
+            }
+
+            generateCircuitTopography();
+            showUIProblem();
+            changeCamera("frontal");
+            openMobileDrawer();
+        }
+
+        function toggleHelpModal() {
+            const modal = document.getElementById("help-modal");
+            modal.classList.toggle("hidden");
+        }
+
+        // --- GENERADOR DE PROBLEMAS CLÁSICOS (MODO BÁSICO) ---
+        function generateValidProblem() {
+            let topologies = ["SERIE", "PARALELO", "MIXTO"];
+            let selectedTopology = topologies[Math.floor(Math.random() * topologies.length)];
+            
+            let R1, R2, R3, Req;
+            
+            if (selectedTopology === "SERIE") {
+                R1 = [10, 20, 30, 40, 50, 60][Math.floor(Math.random() * 6)];
+                R2 = [10, 20, 30, 40, 50, 60][Math.floor(Math.random() * 6)];
+                R3 = [10, 20, 30, 40, 50, 60][Math.floor(Math.random() * 6)];
+                Req = R1 + R2 + R3;
+            } else if (selectedTopology === "PARALELO") {
+                const triplet = getNiceParallelTriplet();
+                R1 = triplet.r1;
+                R2 = triplet.r2;
+                R3 = triplet.r3;
+                Req = triplet.req; 
+            } else if (selectedTopology === "MIXTO") {
+                const pair = getNiceMixedPair();
+                R1 = pair.r1;
+                R2 = pair.r2;
+                const rp = pair.rp; 
+                R3 = [10, 15, 20, 30, 40, 50][Math.floor(Math.random() * 6)];
+                Req = rp + R3; 
+            }
+            
+            const possibleVariables = ["R3", "Vsrc", "Itot"];
+            missingVariableType = possibleVariables[Math.floor(Math.random() * possibleVariables.length)];
+
+            const cleanCurrentList = [0.2, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
+            let Itot = cleanCurrentList[Math.floor(Math.random() * cleanCurrentList.length)];
+            let Vsrc = parseFloat((Itot * Req).toFixed(1));
+
+            if (missingVariableType === "Itot") {
+                correctAnswer = Itot; 
+            } else if (missingVariableType === "Vsrc") {
+                correctAnswer = Vsrc; 
+            } else if (missingVariableType === "R3") {
+                correctAnswer = R3; 
+            }
+
+            displayedParameters = {
+                topology: selectedTopology,
+                R1: R1, R2: R2, R3: R3,
+                Vsrc: Vsrc,
+                Itot: Itot
+            };
+        }
+
+        // --- GENERADOR DE PROBLEMAS DE KIRCHHOFF EXACTOS (SISTEMA NODAL SIN FRACCIONARIOS INFINITOS) ---
+        function generateCleanAdvancedProblem() {
+            const R_vals = [10, 20, 30, 40, 50, 60];
+            const V_vals = [12, 15, 24, 30, 36, 48, 60, 90, 120];
+            let found = false;
+            let R1, R2, R3, Vf1, Vf2, Vn, I1, I2, I3;
+            
+            for (let attempts = 0; attempts < 2000; attempts++) {
+                R1 = R_vals[Math.floor(Math.random() * R_vals.length)];
+                R2 = R_vals[Math.floor(Math.random() * R_vals.length)];
+                R3 = R_vals[Math.floor(Math.random() * R_vals.length)];
+                Vf1 = V_vals[Math.floor(Math.random() * V_vals.length)];
+                Vf2 = V_vals[Math.floor(Math.random() * V_vals.length)]; // Corregido Vf2_vals por V_vals
+                
+                let denom = 1/R1 + 1/R2 + 1/R3;
+                let numer = Vf1/R1 + Vf2/R2;
+                let tempVn = numer / denom;
+                
+                let Vn_rounded = Math.round(tempVn * 10) / 10;
+                if (Math.abs(tempVn - Vn_rounded) < 1e-4) {
+                    let tempI1 = (Vf1 - Vn_rounded) / R1;
+                    let tempI2 = (Vf2 - Vn_rounded) / R2;
+                    let tempI3 = Vn_rounded / R3;
+                    
+                    let I1_rounded = Math.round(tempI1 * 10) / 10;
+                    let I2_rounded = Math.round(tempI2 * 10) / 10;
+                    let I3_rounded = Math.round(tempI3 * 10) / 10;
+                    
+                    if (Math.abs(tempI1 - I1_rounded) < 1e-4 &&
+                        Math.abs(tempI2 - I2_rounded) < 1e-4 &&
+                        Math.abs(tempI3 - I3_rounded) < 1e-4 &&
+                        I1_rounded > 0.05 && I2_rounded > 0.05 && Vn_rounded > 1.0) {
+                        
+                        Vn = Vn_rounded;
+                        I1 = I1_rounded;
+                        I2 = I2_rounded;
+                        I3 = I3_rounded;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) { 
+                R1 = 10; R2 = 10; R3 = 5; Vf1 = 12; Vf2 = 8; Vn = 5.0; I1 = 0.7; I2 = 0.3; I3 = 1.0;
+            }
+            return { R1, R2, R3, Vf1, Vf2, Vn, I1, I2, I3 };
+        }
+
+        // --- CONFIGURAR PROBLEMA DE KIRCHHOFF (MODO AVANZADO MULTI-TOPOLOGÍAS) ---
+        function generateAdvancedProblem() {
+            let topologies = ["SERIE", "PARALELO", "MIXTO"];
+            let selectedTopology = topologies[Math.floor(Math.random() * topologies.length)];
+
+            if (selectedTopology === "SERIE") {
+                // Lazo cerrado único con fuentes en serie (opuestas o ayudándose)
+                const R_vals = [10, 20, 30, 40, 50];
+                const I_vals = [0.2, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0];
+                const Vf2_vals = [12, 24, 36, 48];
+                
+                let R1 = R_vals[Math.floor(Math.random() * R_vals.length)];
+                let R2 = R_vals[Math.floor(Math.random() * R_vals.length)];
+                let R3 = R_vals[Math.floor(Math.random() * R_vals.length)];
+                let Req = R1 + R2 + R3;
+                let I = I_vals[Math.floor(Math.random() * I_vals.length)];
+                let Vf2 = Vf2_vals[Math.floor(Math.random() * Vf2_vals.length)];
+                let Vf1 = Vf2 + (I * Req); // KVL: I = (Vf1 - Vf2) / Req
+
+                if (Vf1 > 220) {
+                    Vf1 = 120;
+                    I = parseFloat(((Vf1 - Vf2) / Req).toFixed(1));
+                }
+
+                // Elegir variable incógnita
+                const possibleAdvancedTargets = ["R3", "Vsrc2", "I3"];
+                missingVariableType = possibleAdvancedTargets[Math.floor(Math.random() * possibleAdvancedTargets.length)];
+
+                if (missingVariableType === "I3") correctAnswer = I;
+                else if (missingVariableType === "Vsrc2") correctAnswer = Vf2;
+                else if (missingVariableType === "R3") correctAnswer = R3;
+
+                displayedParameters = {
+                    topology: "SERIE",
+                    R1: R1, R2: R2, R3: R3,
+                    Vsrc: Vf1, Vsrc2: Vf2,
+                    Vnode: 0.0, 
+                    I1: I, I2: I, I3: I
+                };
+
+            } else {
+                // PARALELO o MIXTO (Dos mallas concurrentes/nódales)
+                const prob = generateCleanAdvancedProblem();
+                
+                const possibleAdvancedTargets = ["Vnode", "I3", "Vsrc2", "R3"];
+                missingVariableType = possibleAdvancedTargets[Math.floor(Math.random() * possibleAdvancedTargets.length)];
+
+                if (missingVariableType === "Vnode") correctAnswer = prob.Vn;
+                else if (missingVariableType === "I3") correctAnswer = prob.I3;
+                else if (missingVariableType === "Vsrc2") correctAnswer = prob.Vf2;
+                else if (missingVariableType === "R3") correctAnswer = prob.R3;
+
+                displayedParameters = {
+                    topology: selectedTopology,
+                    R1: prob.R1,
+                    R2: prob.R2,
+                    R3: prob.R3,
+                    Vsrc: prob.Vf1,  
+                    Vsrc2: prob.Vf2, 
+                    Vnode: prob.Vn,  
+                    I1: prob.I1,
+                    I2: prob.I2,
+                    I3: prob.I3
+                };
+            }
+        }
+
+        // --- ANIMACIÓN PRINCIPAL DE THREE.JS ---
+        const systemClock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(systemClock.getDelta(), 0.03);
+
+            if (controls && controls.enabled) {
+                controls.update();
+            }
+
+            updateElectrons(dt);
+            updateSparks(dt);
+
+            if (isShortCircuited) {
+                shortCircuitTime += dt;
+                
+                // Oscilar de rojo a negro indicando falla de fusible
+                const blink = Math.sin(performance.now() * 0.05) > 0 ? 0xff0000 : 0x050711;
+                powerSource.children[1].material.color.setHex(blink);
+                if (powerSource2) {
+                    powerSource2.children[1].material.color.setHex(blink);
+                }
+
+                if (shortCircuitTime >= shortCircuitDuration) {
+                    isShortCircuited = false;
+                    powerSource.children[1].material.color.setHex(0x00f0ff); 
+                    if (powerSource2) {
+                        powerSource2.children[1].material.color.setHex(0xa855f7); 
+                    }
+                    
+                    if (pendingFailureAction) {
+                        pendingFailureAction();
+                        pendingFailureAction = null;
+                    }
+                }
+            }
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        window.onload = function() {
+            init3D();
+            
+            // Establecer estilo activo inicial del sistema dual en "Básico"
+            document.getElementById("mode-basic-btn").className = "flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center border border-yellow-500/50 bg-yellow-950/60 shadow-[0_0_8px_rgba(234,179,8,0.25)] text-yellow-400 pointer-events-auto";
+            document.getElementById("mode-advanced-btn").className = "flex-1 py-1 rounded text-[8.5px] font-black font-orbitron transition-all duration-200 uppercase text-center border border-transparent text-gray-500 hover:text-gray-300 pointer-events-auto";
+            
+            updateFlowUI();
+            resetExercise();
+            animate();
+            
+            document.getElementById("checkBtn").addEventListener("click", triggerVerify);
+            document.getElementById("resetBtn").addEventListener("click", resetExercise);
+            
+            document.getElementById("manual-input").addEventListener("keypress", function(e) {
+                if (e.key === "Enter") {
+                    triggerVerify();
+                }
+            });
+        };
+    </script>
+</body>
+</html>

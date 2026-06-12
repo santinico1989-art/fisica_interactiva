@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Física 3D: Simulador Avanzado de Proyectiles</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Estilos Personalizados para Scrollbars y Fuentes -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@500;600;700&display=swap');
+        
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #05050a;
+            overflow: hidden;
+        }
+        .tech-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Custom scrollbar para panel de control */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(6, 182, 212, 0.3);
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(6, 182, 212, 0.6);
+        }
+
+        /* ===== RESPONSIVE MÓVIL ===== */
+        @media (max-width: 768px) {
+            /* El panel de control de la derecha se convierte en cajón inferior */
+            #control-panel {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                top: auto !important;
+                width: 100% !important;
+                height: auto !important;
+                max-height: 72vh;
+                background: rgba(5, 5, 10, 0.97);
+                backdrop-filter: blur(20px);
+                border-top: 1px solid rgba(6, 182, 212, 0.4);
+                border-radius: 18px 18px 0 0;
+                flex-direction: column !important;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 12px 12px 80px 12px;
+                gap: 8px;
+                z-index: 35 !important;
+                transform: translateY(100%);
+                transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+                pointer-events: auto !important;
+                display: flex !important;
+            }
+            #control-panel.drawer-open {
+                transform: translateY(0%);
+            }
+            /* El botón toggle del HUD se mueve para no solapar */
+            #btn-toggle-hud {
+                top: 8px !important;
+                right: 8px !important;
+            }
+            /* Botón de cajón móvil solo visible en móvil */
+            #mobile-drawer-toggle {
+                display: flex !important;
+            }
+            /* Panel de telemetría móvil reubicado para no solapar la simulación */
+            .hud-element.absolute.top-36 {
+                top: 80px !important;
+            }
+            /* Panel de resultados en móvil sin offset derecho */
+            .hud-element.absolute.bottom-4.right-4.md\:right-\[336px\] {
+                right: 4px !important;
+                left: 4px !important;
+            }
+        }
+        @media (min-width: 769px) {
+            #mobile-drawer-toggle {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-100 h-screen w-screen flex flex-col md:flex-row relative select-none">
+
+    <!-- CONTENEDOR DE LA ESCENA THREE.JS (FONDO COMPLETAMENTE EXPANDIDO) -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- BOTÓN FLOTANTE INDEPENDIENTE: OCULTAR/MOSTRAR TODO EL HUD -->
+    <div class="absolute top-4 right-4 z-30 pointer-events-auto">
+        <button id="btn-toggle-hud" class="bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/50 rounded-lg px-3 py-2 text-cyan-400 hover:text-cyan-300 transition-all duration-200 shadow-lg shadow-cyan-950/30 flex items-center gap-2">
+            <svg id="hud-toggle-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            <span id="hud-toggle-text" class="text-xs font-semibold uppercase tracking-wider tech-font hidden sm:inline">Ocultar HUD</span>
+        </button>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL DEL HUD (Sujeto a visibilidad de alternancia) -->
+    <div id="hud-overlay" class="absolute inset-0 z-10 pointer-events-none transition-all duration-300 opacity-100">
+
+        <!-- 1. BARRA DE TÍTULO PRINCIPAL (TOP LEFT) -->
+        <div class="hud-element transition-all duration-300 absolute top-4 left-4 max-w-[280px] sm:max-w-sm pointer-events-none">
+            <div class="bg-slate-950/40 backdrop-blur-md border border-cyan-500/20 rounded-lg p-3 shadow-lg shadow-black/40 pointer-events-auto">
+                <div class="flex justify-between items-center gap-4 mb-1">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
+                        <span class="text-[10px] font-semibold uppercase tracking-widest text-cyan-400 tech-font">Módulo Balístico V3.2</span>
+                    </div>
+                    <a href="./index.html" class="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold uppercase tracking-wider transition-colors flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        Volver
+                    </a>
+                </div>
+                <h1 class="text-lg sm:text-xl font-bold text-white tracking-wide tech-font">SIMULADOR 3D</h1>
+                <p class="text-[11px] text-slate-400 leading-relaxed mt-0.5">Física interactiva con fuerzas vectoriales en tiempo real.</p>
+            </div>
+        </div>
+
+        <!-- 2. PANEL DE CONTROL LATERAL (DERECHA EN DESKTOP) -->
+        <div id="control-panel" class="absolute right-4 top-16 bottom-4 w-80 flex flex-col gap-3 pointer-events-none z-20">
+            <!-- Tarjeta de Controles (Glassmorphism) - ESTA SE OCULTA CON EL HUD -->
+            <div class="hud-element transition-all duration-300 bg-slate-950/40 backdrop-blur-md border border-slate-800/60 rounded-xl p-4 flex flex-col max-h-[calc(100%-120px)] pointer-events-auto shadow-2xl overflow-hidden">
+                
+                <!-- Cabecera Colapsable del Panel -->
+                <div class="flex justify-between items-center pb-2 border-b border-slate-800/60 mb-2 shrink-0">
+                    <h2 class="text-sm font-bold text-cyan-400 tech-font tracking-wider flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                        PARÁMETROS
+                    </h2>
+                    <button id="btn-collapse-params" class="text-slate-400 hover:text-white transition-colors p-1">
+                        <svg id="chevron-params" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Cuerpo de Controles (Deslizable y colapsable) -->
+                <div id="params-content" class="space-y-3.5 text-xs overflow-y-auto flex-1 pr-1 py-1 transition-all duration-300">
+                    
+                    <!-- Presets -->
+                    <div>
+                        <label class="text-slate-400 block mb-1 text-[10px] uppercase font-semibold">Entorno Físico</label>
+                        <select id="preset-env" class="w-full bg-slate-950/80 border border-slate-800 text-cyan-300 rounded px-2 py-1 focus:outline-none focus:border-cyan-500 text-xs">
+                            <option value="earth">Preset: Tierra (1G con Arrastre)</option>
+                            <option value="moon">Preset: Luna (0.16G)</option>
+                            <option value="mars">Preset: Marte (0.38G)</option>
+                            <option value="jupiter">Preset: Júpiter (2.52G)</option>
+                            <option value="vacuum" selected>Preset: Sin Arrastre</option>
+                        </select>
+                    </div>
+
+                    <!-- Velocidad Inicial -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Velocidad Inicial (v₀)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-speed">30 m/s</span>
+                        </div>
+                        <input id="slide-speed" type="range" min="5" max="100" step="1" value="30" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+
+                    <!-- Ángulo de Elevación -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Ángulo Elevación (θ)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-angle">45°</span>
+                        </div>
+                        <input id="slide-angle" type="range" min="0" max="90" step="1" value="45" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+
+                    <!-- Ángulo Azimut (Dirección 3D) -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Dirección Azimut (φ)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-azimuth">0°</span>
+                        </div>
+                        <input id="slide-azimuth" type="range" min="0" max="360" step="1" value="0" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+
+                    <!-- Altura de Lanzamiento -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Altura Inicial (h₀)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-height">0 m</span>
+                        </div>
+                        <input id="slide-height" type="range" min="0" max="50" step="0.5" value="0" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+
+                    <!-- Resistencia Aerodinámica (Arrastre) -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Arrastre del Aire (c)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-drag">0.00</span>
+                        </div>
+                        <input id="slide-drag" type="range" min="0" max="1" step="0.01" value="0.00" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+
+                    <!-- Gravedad -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Gravedad (g)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-gravity">9.81 m/s²</span>
+                        </div>
+                        <input id="slide-gravity" type="range" min="1.0" max="25.0" step="0.1" value="9.81" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+
+                    <!-- Masa del Proyectil -->
+                    <div>
+                        <div class="flex justify-between mb-0.5">
+                            <span class="text-slate-300 font-semibold">Masa Proyectil (m)</span>
+                            <span class="text-cyan-400 font-bold tech-font" id="val-mass">1.0 kg</span>
+                        </div>
+                        <input id="slide-mass" type="range" min="0.1" max="10.0" step="0.1" value="1.0" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta de Ejecución (Acciones - SIEMPRE VISIBLE) -->
+            <div class="bg-slate-950/60 backdrop-blur-md border border-slate-800/60 rounded-xl p-3 shadow-2xl pointer-events-auto space-y-2 shrink-0">
+                <button id="btn-fire" class="w-full bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-950/20 text-xs tech-font tracking-wider">
+                    <svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    LANZAR PROYECTIL
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-reset" class="bg-slate-900/65 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold py-1.5 px-2 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M9.612 5.108L13 8.5M9.612 5.108L13 1.714"></path></svg>
+                        REINICIAR
+                    </button>
+                    <button id="btn-pause" class="bg-slate-900/65 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold py-1.5 px-2 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-colors">
+                        <svg id="pause-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span id="pause-text">PAUSAR</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. PANEL DE TELEMETRÍA EN VIVO (ARRIBA CENTRO - DESKTOP) -->
+        <div class="hud-element transition-all duration-300 absolute top-4 left-1/2 transform -translate-x-1/2 pointer-events-none hidden lg:block">
+            <div class="flex gap-4 bg-slate-950/40 backdrop-blur-md border border-slate-800/40 rounded-lg px-5 py-2 shadow-xl">
+                <!-- Telemetría: Velocidad Total -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[9px] uppercase text-slate-400 tracking-wider font-semibold">Vel. Total</span>
+                    <span id="tel-speed" class="text-lg font-extrabold text-emerald-400 tech-font">0.00 <span class="text-xs font-normal text-slate-400">m/s</span></span>
+                </div>
+                <div class="w-px bg-slate-800/60 my-1"></div>
+                <!-- Telemetría: Velocidad Horizontal -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[9px] uppercase text-slate-400 tracking-wider font-semibold">Vel. Horizontal (V x/z)</span>
+                    <span id="tel-vxz" class="text-lg font-extrabold text-amber-500 tech-font">0.00 <span class="text-xs font-normal text-slate-400">m/s</span></span>
+                </div>
+                <div class="w-px bg-slate-800/60 my-1"></div>
+                <!-- Telemetría: Velocidad Vertical -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[9px] uppercase text-slate-400 tracking-wider font-semibold">Vel. Vertical (V y)</span>
+                    <span id="tel-vy" class="text-lg font-extrabold text-rose-400 tech-font">0.00 <span class="text-xs font-normal text-slate-400">m/s</span></span>
+                </div>
+                <div class="w-px bg-slate-800/60 my-1"></div>
+                <!-- Telemetría: Altura -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[9px] uppercase text-slate-400 tracking-wider font-semibold">Altura (Y)</span>
+                    <span id="tel-height" class="text-lg font-extrabold text-cyan-400 tech-font">0.00 <span class="text-xs font-normal text-slate-400">m</span></span>
+                </div>
+                <div class="w-px bg-slate-800/60 my-1"></div>
+                <!-- Telemetría: Distancia -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[9px] uppercase text-slate-400 tracking-wider font-semibold">Distancia (X-Z)</span>
+                    <span id="tel-distance" class="text-lg font-extrabold text-amber-400 tech-font">0.00 <span class="text-xs font-normal text-slate-400">m</span></span>
+                </div>
+                <div class="w-px bg-slate-800/60 my-1"></div>
+                <!-- Telemetría: Tiempo -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[9px] uppercase text-slate-400 tracking-wider font-semibold">Tiempo</span>
+                    <span id="tel-time" class="text-lg font-extrabold text-violet-400 tech-font">0.00 <span class="text-xs font-normal text-slate-400">s</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. CONTROLES DE CÁMARA (ABAJO IZQUIERDA) -->
+        <div class="hud-element transition-all duration-300 absolute bottom-4 left-4 flex flex-col gap-1.5 pointer-events-none">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 tech-font">Modo Cámara</span>
+            <div class="flex gap-0.5 bg-slate-950/60 backdrop-blur-md border border-slate-800/40 rounded-lg p-0.5 shadow-lg pointer-events-auto">
+                <button id="cam-orbit" class="bg-cyan-600 text-white font-semibold py-1 px-2.5 rounded text-[10px] transition-colors tracking-wide hover:bg-cyan-500">ÓRBITA</button>
+                <button id="cam-follow" class="text-slate-400 hover:text-white hover:bg-slate-800 font-semibold py-1 px-2.5 rounded text-[10px] transition-colors tracking-wide">SEGUIR</button>
+                <button id="cam-gun" class="text-slate-400 hover:text-white hover:bg-slate-800 font-semibold py-1 px-2.5 rounded text-[10px] transition-colors tracking-wide">CAÑÓN</button>
+                <button id="cam-top" class="text-slate-400 hover:text-white hover:bg-slate-800 font-semibold py-1 px-2.5 rounded text-[10px] transition-colors tracking-wide">AÉREA</button>
+            </div>
+        </div>
+
+        <!-- 5. PANEL DE RESULTADOS / CONSOLA DE ANÁLISIS (ABAJO CENTRO-DERECHA, PERFECTAMENTE ALINEADO) -->
+        <div class="hud-element transition-all duration-300 absolute bottom-4 right-4 md:right-[336px] left-4 md:left-auto pointer-events-none">
+            <div class="bg-slate-950/40 backdrop-blur-md border border-slate-800/60 rounded-xl p-3.5 md:w-[350px] pointer-events-auto shadow-2xl overflow-hidden">
+                
+                <!-- Cabecera de la Consola -->
+                <div class="flex justify-between items-center pb-1.5 border-b border-slate-800/60 mb-2 shrink-0">
+                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                        CONSOLA DE HITOS
+                    </h3>
+                    <button id="btn-collapse-results" class="text-slate-400 hover:text-white transition-colors p-0.5">
+                        <svg id="chevron-results" class="w-3.5 h-3.5 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Detalles de Resultados -->
+                <div id="results-content" class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs transition-all duration-300">
+                    <div class="flex justify-between border-b border-slate-900 py-0.5">
+                        <span class="text-slate-400">Alcance Máx (R):</span>
+                        <span id="res-range" class="font-bold text-white tech-font">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-900 py-0.5">
+                        <span class="text-slate-400">Altura Máx (H):</span>
+                        <span id="res-apex" class="font-bold text-white tech-font">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-900 py-0.5">
+                        <span class="text-slate-400">Tiempo de Vuelo:</span>
+                        <span id="res-time" class="font-bold text-white tech-font">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-900 py-0.5">
+                        <span class="text-slate-400">Velocidad Final:</span>
+                        <span id="res-vfinal" class="font-bold text-white tech-font">-</span>
+                    </div>
+                    <div class="flex justify-between py-0.5 col-span-2">
+                        <span class="text-slate-400">Condición:</span>
+                        <span id="res-cond" class="font-semibold text-cyan-400 italic">Esperando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. PANEL MÓVIL DE TELEMETRÍA COMPACTO (SITUADO BAJO EL TÍTULO) -->
+        <div class="hud-element transition-all duration-300 absolute top-36 left-4 w-[280px] sm:w-[320px] z-10 bg-slate-950/40 backdrop-blur-md border border-slate-800/40 rounded-lg p-2.5 shadow-lg pointer-events-none text-[10px]">
+            <div class="grid grid-cols-3 gap-x-2 gap-y-2 text-center">
+                <div>
+                    <span class="text-slate-400 block font-semibold">Y (Alt)</span>
+                    <span id="tel-mob-height" class="font-bold text-cyan-400">0.0m</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block font-semibold">XZ (Dist)</span>
+                    <span id="tel-mob-distance" class="font-bold text-amber-400">0.0m</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block font-semibold">Tiempo</span>
+                    <span id="tel-mob-time" class="font-bold text-violet-400">0.0s</span>
+                </div>
+                <div class="border-t border-slate-800/40 pt-1.5 col-span-3 grid grid-cols-3 gap-1 text-center">
+                    <div>
+                        <span class="text-slate-400 block font-semibold text-[8px]">Vel Total</span>
+                        <span id="tel-mob-speed" class="font-bold text-emerald-400">0.0m/s</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block font-semibold text-[8px]">Vel H (Vx/z)</span>
+                        <span id="tel-mob-vxz" class="font-bold text-amber-500">0.0m/s</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block font-semibold text-[8px]">Vel V (Vy)</span>
+                        <span id="tel-mob-vy" class="font-bold text-rose-400">0.0m/s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- BOTÓN FLOTANTE PARA DESPLEGAR PANEL EN MÓVILES -->
+    <button id="mobile-drawer-toggle" onclick="toggleMobileDrawer()" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 tech-font font-extrabold text-[10px] uppercase tracking-wider px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-300/30 transition-all duration-300 items-center gap-2 pointer-events-auto" style="display:none">
+        <svg id="mobile-drawer-icon" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+        <span id="mobile-drawer-text">Ver Parámetros</span>
+    </button>
+
+    <!-- SCRIPTS DE SIMULACIÓN Y RENDERIZADO -->
+    <script>
+        // --- INICIALIZACIÓN GLOBAL DE TRES.JS ---
+        let container, scene, camera, renderer, controls;
+        let ground, launcherGroup, projectile, arrowVelocity, arrowGravity, arrowDrag;
+        let apexMarker, landingMarker;
+        let predictedPathLine, flownPathLine;
+        
+        // --- CONSTANTES DE FÍSICA Y ESTADOS ---
+        const config = {
+            v0: 30,         // Velocidad inicial (m/s)
+            angle: 45,      // Elevación (grados)
+            azimuth: 0,     // Azimut (grados)
+            h0: 0,          // Altura inicial (m)
+            g: 9.81,        // Gravedad (m/s²)
+            c: 0.00,        // Coeficiente de resistencia aerodinámica (kg/m o proporcional) -> Inicializado por defecto en 0
+            mass: 1.0       // Masa (kg)
+        };
+
+        let state = {
+            running: false,
+            paused: false,
+            timeScale: 1.0, // Factor de escala para cámara lenta
+            time: 0,
+            x: 0, y: 0, z: 0,
+            vx: 0, vy: 0, vz: 0,
+            flownPoints: [], // Almacén para el rastro recorrido
+            maxHeightReached: 0,
+            apexPosition: null,
+            cameraMode: 'orbit', // orbit, follow, gun, top
+            hasLanded: false
+        };
+
+        window.onload = function() {
+            init3DScene();
+            initUIControls();
+            buildScene();
+            animate();
+            
+            // Colapso inteligente automático en móviles al iniciar
+            if (window.innerWidth < 768) {
+                toggleCollapseSection('params-content', 'chevron-params', false);
+                toggleCollapseSection('results-content', 'chevron-results', false);
+            }
+        };
+
+        // --- DISEÑO DE ESCENA 3D (THREE.JS) ---
+        function init3DScene() {
+            container = document.getElementById('canvas-container');
+            
+            // Escena
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x07080f);
+            scene.fog = new THREE.FogExp2(0x07080f, 0.007);
+
+            // Cámara
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.set(40, 25, 70);
+
+            // Renderizador con sombras habilitadas
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Controles de Órbita
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.01; // No traspasar el suelo
+            controls.minDistance = 5;
+            controls.maxDistance = 300;
+            controls.target.set(10, 5, 0);
+
+            // Luces
+            const ambientLight = new THREE.AmbientLight(0x1a243d, 1.2);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(50, 100, 50);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 250;
+            const d = 150;
+            directionalLight.shadow.camera.left = -d;
+            directionalLight.shadow.camera.right = d;
+            directionalLight.shadow.camera.top = d;
+            directionalLight.shadow.camera.bottom = -d;
+            scene.add(directionalLight);
+
+            // Añadir luz de apoyo estilo cibernético (azul neón lateral)
+            const pointLight = new THREE.PointLight(0x06b6d4, 2, 80);
+            pointLight.position.set(0, 5, 0);
+            scene.add(pointLight);
+
+            // Rejilla de Suelo de Alta Tecnología
+            const gridSize = 400;
+            const gridDivisions = 100;
+            const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x06b6d4, 0x1e293b);
+            gridHelper.position.y = -0.01; // Un poco abajo para evitar z-fighting
+            scene.add(gridHelper);
+
+            // Plano del Suelo (Sólido y reflexivo/sombreado)
+            const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
+            const groundMat = new THREE.MeshStandardMaterial({
+                color: 0x090d16,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Crear el Cañón Base / Lanzador
+            createLauncher();
+
+            // Crear los Marcadores Holográficos de Hitos
+            createMarkers();
+
+            // Evento Resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- CREACIÓN DE ELEMENTOS GRÁFICOS ---
+        function createLauncher() {
+            launcherGroup = new THREE.Group();
+            
+            // Base del cañón
+            const baseGeo = new THREE.CylinderGeometry(1.5, 1.8, 0.5, 16);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.position.y = 0.25;
+            base.castShadow = true;
+            launcherGroup.add(base);
+
+            // Soporte pivotante (Horquilla)
+            const pivotGeo = new THREE.SphereGeometry(1.0, 16, 16);
+            const pivotMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.7, roughness: 0.3 });
+            const pivot = new THREE.Mesh(pivotGeo, pivotMat);
+            pivot.position.y = 0.8;
+            launcherGroup.add(pivot);
+
+            // Tubo del cañón
+            const barrelGeo = new THREE.CylinderGeometry(0.4, 0.5, 3.5, 16);
+            barrelGeo.translate(0, 1.75, 0); // Ajustar el origen para rotar desde la base
+            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.1 });
+            const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+            barrel.name = "barrel";
+            barrel.position.y = 0.8;
+            barrel.castShadow = true;
+            launcherGroup.add(barrel);
+
+            scene.add(launcherGroup);
+        }
+
+        function createMarkers() {
+            // Marcador de Ápex (Altura Máxima)
+            const apexGeo = new THREE.ConeGeometry(0.6, 1.5, 4);
+            const apexMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true });
+            apexMarker = new THREE.Mesh(apexGeo, apexMat);
+            apexMarker.visible = false;
+            scene.add(apexMarker);
+
+            // Luz proyectada por el Ápex
+            const apexLight = new THREE.PointLight(0x38bdf8, 3, 10);
+            apexMarker.add(apexLight);
+
+            // Marcador de Impacto (Diana en el suelo)
+            const landingGeo = new THREE.RingGeometry(0.1, 1.5, 32);
+            const landingMat = new THREE.MeshBasicMaterial({ color: 0xf97316, side: THREE.DoubleSide, opacity: 0.7, transparent: true });
+            landingMarker = new THREE.Mesh(landingGeo, landingMat);
+            landingMarker.rotation.x = Math.PI / 2;
+            landingMarker.position.y = 0.05;
+            landingMarker.visible = false;
+            scene.add(landingMarker);
+            
+            // Añadir círculo interno parpadeante
+            const innerRing = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.5, 32), new THREE.MeshBasicMaterial({ color: 0xf97316, side: THREE.DoubleSide }));
+            innerRing.name = "inner";
+            landingMarker.add(innerRing);
+        }
+
+        function buildScene() {
+            // Actualizar altura del cañón base
+            launcherGroup.position.y = config.h0;
+
+            // Orientar el Cañón (Ángulos en 3D)
+            const barrel = launcherGroup.getObjectByName("barrel");
+            if (barrel) {
+                launcherGroup.rotation.y = -config.azimuth * Math.PI / 180;
+                barrel.rotation.z = (config.angle - 90) * Math.PI / 180;
+            }
+
+            // Ocultar marcadores previos si no está corriendo
+            if (!state.running) {
+                apexMarker.visible = false;
+                landingMarker.visible = false;
+            }
+
+            // Actualizar Línea de Trayectoria Predictiva
+            calculatePrediction();
+        }
+
+        // --- SISTEMA FÍSICO DE PREDICCIÓN EN TIEMPO REAL ---
+        function calculatePrediction() {
+            if (predictedPathLine) scene.remove(predictedPathLine);
+
+            const points = [];
+            let t = 0;
+            let dt = 0.016; 
+            let x = 0;
+            let y = config.h0;
+            let z = 0;
+
+            const theta = config.angle * Math.PI / 180;
+            const phi = config.azimuth * Math.PI / 180;
+
+            let vx = config.v0 * Math.cos(theta) * Math.cos(phi);
+            let vy = config.v0 * Math.sin(theta);
+            let vz = config.v0 * Math.cos(theta) * Math.sin(phi);
+
+            points.push(new THREE.Vector3(x, y, z));
+
+            let maxH = y;
+            let maxHParent = new THREE.Vector3(x, y, z);
+            let steps = 0;
+
+            while (y >= 0 && steps < 3000) {
+                const speed = Math.sqrt(vx*vx + vy*vy + vz*vz);
+                const dragFactor = (0.5 * config.c * speed) / config.mass;
+                
+                const ax = -dragFactor * vx;
+                const ay = -config.g - (dragFactor * vy);
+                const az = -dragFactor * vz;
+
+                vx += ax * dt;
+                vy += ay * dt;
+                vz += az * dt;
+
+                x += vx * dt;
+                y += vy * dt;
+                z += vz * dt;
+                t += dt;
+
+                if (y > maxH) {
+                    maxH = y;
+                    maxHParent.set(x, y, z);
+                }
+
+                if (y >= 0) {
+                    points.push(new THREE.Vector3(x, y, z));
+                }
+                steps++;
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineDashedMaterial({
+                color: 0x0ea5e9,
+                dashSize: 1.5,
+                gapSize: 0.8,
+                opacity: 0.6,
+                transparent: true
+            });
+
+            predictedPathLine = new THREE.Line(geometry, material);
+            predictedPathLine.computeLineDistances(); 
+            scene.add(predictedPathLine);
+
+            if (points.length > 0) {
+                const lastPoint = points[points.length - 1];
+                landingMarker.position.set(lastPoint.x, 0.05, lastPoint.z);
+                landingMarker.visible = true;
+
+                apexMarker.position.set(maxHParent.x, maxHParent.y + 1.0, maxHParent.z);
+                apexMarker.visible = true;
+            }
+        }
+
+        // --- GESTIÓN DE LANZAMIENTO Y SIMULACIÓN EN TIEMPO REAL ---
+        function fireProjectile() {
+            // Cerrar el cajón móvil para ver la simulación
+            closeMobileDrawer();
+
+            resetSimulation();
+
+            state.running = true;
+            state.paused = false;
+            state.time = 0;
+            state.hasLanded = false;
+            state.flownPoints = [];
+            state.maxHeightReached = config.h0;
+
+            state.x = 0;
+            state.y = config.h0;
+            state.z = 0;
+
+            const theta = config.angle * Math.PI / 180;
+            const phi = config.azimuth * Math.PI / 180;
+
+            state.vx = config.v0 * Math.cos(theta) * Math.cos(phi);
+            state.vy = config.v0 * Math.sin(theta);
+            state.vz = config.v0 * Math.cos(theta) * Math.sin(phi);
+
+            state.apexPosition = new THREE.Vector3(state.x, state.y, state.z);
+
+            if (projectile) scene.remove(projectile);
+            if (flownPathLine) scene.remove(flownPathLine);
+
+            const projGeo = new THREE.SphereGeometry(0.5, 32, 32);
+            const projMat = new THREE.MeshStandardMaterial({
+                color: 0xff3300,
+                emissive: 0xff3300,
+                emissiveIntensity: 1.5,
+                metalness: 0.1,
+                roughness: 0.1
+            });
+            projectile = new THREE.Mesh(projGeo, projMat);
+            projectile.position.set(state.x, state.y, state.z);
+            projectile.castShadow = true;
+            scene.add(projectile);
+
+            const projLight = new THREE.PointLight(0xff5500, 3, 15);
+            projectile.add(projLight);
+
+            arrowVelocity = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+                5,
+                0x10b981, 
+                1.2, 0.4
+            );
+            arrowGravity = new THREE.ArrowHelper(
+                new THREE.Vector3(0, -1, 0),
+                new THREE.Vector3(0, 0, 0),
+                3,
+                0xef4444, 
+                0.8, 0.3
+            );
+            arrowDrag = new THREE.ArrowHelper(
+                new THREE.Vector3(-1, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+                3,
+                0x3b82f6, 
+                0.8, 0.3
+            );
+
+            projectile.add(arrowVelocity);
+            projectile.add(arrowGravity);
+            projectile.add(arrowDrag);
+
+            const pathGeometry = new THREE.BufferGeometry();
+            const pathMaterial = new THREE.LineBasicMaterial({ color: 0xff4500, linewidth: 3 });
+            flownPathLine = new THREE.Line(pathGeometry, pathMaterial);
+            scene.add(flownPathLine);
+
+            apexMarker.visible = false;
+            landingMarker.visible = false;
+
+            document.getElementById('res-cond').innerText = "Vuelo en progreso...";
+            document.getElementById('res-cond').className = "font-semibold text-orange-400 italic animate-pulse";
+            
+            document.getElementById('pause-text').innerText = "PAUSAR";
+            document.getElementById('pause-icon').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+        }
+
+        function updatePhysics(dt) {
+            if (!state.running || state.paused || state.hasLanded) return;
+
+            const subSteps = 8;
+            const subDt = (dt * state.timeScale) / subSteps;
+
+            for (let i = 0; i < subSteps; i++) {
+                const speed = Math.sqrt(state.vx*state.vx + state.vy*state.vy + state.vz*state.vz);
+                const dragAccFactor = (0.5 * config.c * speed) / config.mass;
+                
+                const ax = -dragAccFactor * state.vx;
+                const ay = -config.g - (dragAccFactor * state.vy);
+                const az = -dragAccFactor * state.vz;
+
+                state.vx += ax * subDt;
+                state.vy += ay * subDt;
+                state.vz += az * subDt;
+
+                state.x += state.vx * subDt;
+                state.y += state.vy * subDt;
+                state.z += state.vz * subDt;
+                state.time += subDt;
+
+                state.flownPoints.push(new THREE.Vector3(state.x, state.y, state.z));
+
+                if (state.y > state.maxHeightReached) {
+                    state.maxHeightReached = state.y;
+                    state.apexPosition.set(state.x, state.y, state.z);
+                    
+                    apexMarker.position.set(state.x, state.y + 1.0, state.z);
+                    apexMarker.visible = true;
+                }
+
+                if (state.y <= 0) {
+                    state.y = 0;
+                    state.hasLanded = true;
+                    handleImpact();
+                    break;
+                }
+            }
+
+            projectile.position.set(state.x, state.y, state.z);
+
+            const currentSpeed = Math.sqrt(state.vx*state.vx + state.vy*state.vy + state.vz*state.vz);
+            
+            if (currentSpeed > 0.01) {
+                const velDir = new THREE.Vector3(state.vx, state.vy, state.vz).normalize();
+                arrowVelocity.setDirection(velDir);
+                arrowVelocity.setLength(Math.min(1.5 + currentSpeed * 0.15, 10), 1.0, 0.3);
+            }
+
+            if (currentSpeed > 0.01) {
+                const dragDir = new THREE.Vector3(-state.vx, -state.vy, -state.vz).normalize();
+                arrowDrag.setDirection(dragDir);
+                const dragForceMagnitude = 0.5 * config.c * currentSpeed * currentSpeed;
+                arrowDrag.setLength(Math.min(1.0 + dragForceMagnitude * 0.2, 8), 0.7, 0.25);
+            }
+
+            arrowGravity.setLength(Math.min(1.5 + config.g * 0.3, 8), 0.8, 0.25);
+
+            const trailGeometry = new THREE.BufferGeometry().setFromPoints(state.flownPoints);
+            flownPathLine.geometry.dispose();
+            flownPathLine.geometry = trailGeometry;
+
+            updateTelemetry(currentSpeed);
+        }
+
+        function handleImpact() {
+            state.running = false;
+            projectile.position.y = 0;
+            
+            arrowVelocity.visible = false;
+            arrowGravity.visible = false;
+            arrowDrag.visible = false;
+
+            landingMarker.position.set(state.x, 0.05, state.z);
+            landingMarker.visible = true;
+
+            const finalVelocity = Math.sqrt(state.vx*state.vx + state.vy*state.vy + state.vz*state.vz);
+            const horizontalDistance = Math.sqrt(state.x*state.x + state.z*state.z);
+
+            document.getElementById('res-range').innerText = `${horizontalDistance.toFixed(2)} m`;
+            document.getElementById('res-apex').innerText = `${state.maxHeightReached.toFixed(2)} m`;
+            document.getElementById('res-time').innerText = `${state.time.toFixed(2)} s`;
+            document.getElementById('res-vfinal').innerText = `${finalVelocity.toFixed(2)} m/s`;
+            
+            document.getElementById('res-cond').innerText = "Impacto Completado con Éxito.";
+            document.getElementById('res-cond').className = "font-semibold text-emerald-400 italic";
+
+            createImpactEffect(state.x, state.z);
+        }
+
+        function createImpactEffect(x, z) {
+            const particleCount = 40;
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const velocities = [];
+
+            for (let i = 0; i < particleCount; i++) {
+                positions.push(x, 0, z);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 8;
+                velocities.push(
+                    Math.cos(angle) * speed,
+                    Math.random() * 6 + 2,
+                    Math.sin(angle) * speed
+                );
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({
+                color: 0xf97316,
+                size: 0.4,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending
+            });
+
+            const particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+
+            const startTime = Date.now();
+            const duration = 1500; 
+
+            function animateParticles() {
+                const elapsed = Date.now() - startTime;
+                const p = elapsed / duration;
+
+                if (p >= 1) {
+                    scene.remove(particleSystem);
+                    geometry.dispose();
+                    material.dispose();
+                    return;
+                }
+
+                const posArray = particleSystem.geometry.attributes.position.array;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    const idx = i * 3;
+                    
+                    posArray[idx] += velocities[idx] * 0.016; 
+                    velocities[idx+1] -= 9.81 * 0.016;       
+                    posArray[idx+1] += velocities[idx+1] * 0.016; 
+                    posArray[idx+2] += velocities[idx+2] * 0.016; 
+
+                    if (posArray[idx+1] < 0) {
+                        posArray[idx+1] = 0; 
+                    }
+                }
+
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+                material.opacity = 1.0 - p;
+                requestAnimationFrame(animateParticles);
+            }
+
+            animateParticles();
+        }
+
+        function resetSimulation() {
+            state.running = false;
+            state.paused = false;
+            state.time = 0;
+            state.hasLanded = false;
+            state.flownPoints = [];
+
+            if (projectile) scene.remove(projectile);
+            if (flownPathLine) scene.remove(flownPathLine);
+            
+            document.getElementById('tel-speed').innerHTML = `0.00 <span class="text-xs font-normal text-slate-400">m/s</span>`;
+            document.getElementById('tel-vxz').innerHTML = `0.00 <span class="text-xs font-normal text-slate-400">m/s</span>`;
+            document.getElementById('tel-vy').innerHTML = `0.00 <span class="text-xs font-normal text-slate-400">m/s</span>`;
+            document.getElementById('tel-height').innerHTML = `0.00 <span class="text-xs font-normal text-slate-400">m</span>`;
+            document.getElementById('tel-distance').innerHTML = `0.00 <span class="text-xs font-normal text-slate-400">m</span>`;
+            document.getElementById('tel-time').innerHTML = `0.00 <span class="text-xs font-normal text-slate-400">s</span>`;
+
+            document.getElementById('tel-mob-height').innerText = "0.0m";
+            document.getElementById('tel-mob-distance').innerText = "0.0m";
+            document.getElementById('tel-mob-time').innerText = "0.0s";
+            document.getElementById('tel-mob-speed').innerText = "0.0m/s";
+            document.getElementById('tel-mob-vxz').innerText = "0.0m/s";
+            document.getElementById('tel-mob-vy').innerText = "0.0m/s";
+
+            document.getElementById('res-range').innerText = "-";
+            document.getElementById('res-apex').innerText = "-";
+            document.getElementById('res-time').innerText = "-";
+            document.getElementById('res-vfinal').innerText = "-";
+            document.getElementById('res-cond').innerText = "Esperando lanzamiento...";
+            document.getElementById('res-cond').className = "font-semibold text-cyan-400 italic";
+
+            buildScene();
+        }
+
+        function togglePause() {
+            if (!state.running) return;
+            state.paused = !state.paused;
+            const btnText = document.getElementById('pause-text');
+            const btnIcon = document.getElementById('pause-icon');
+
+            if (state.paused) {
+                btnText.innerText = "REANUDAR";
+                btnIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+                document.getElementById('res-cond').innerText = "Simulación Pausada.";
+                document.getElementById('res-cond').className = "font-semibold text-amber-500 italic";
+            } else {
+                btnText.innerText = "PAUSAR";
+                btnIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+                document.getElementById('res-cond').innerText = "Vuelo en progreso...";
+                document.getElementById('res-cond').className = "font-semibold text-orange-400 italic animate-pulse";
+            }
+        }
+
+        // --- MANEJO DE SECCIONES COLAPSABLES ---
+        function toggleCollapseSection(contentId, chevronId, forceState = null) {
+            const content = document.getElementById(contentId);
+            const chevron = document.getElementById(chevronId);
+            
+            let isExpanded = forceState !== null ? forceState : content.classList.contains('hidden');
+            
+            if (isExpanded) {
+                content.classList.remove('hidden');
+                chevron.classList.remove('rotate-180');
+            } else {
+                content.classList.add('hidden');
+                chevron.classList.add('rotate-180');
+            }
+        }
+
+        // --- CAJÓN MÓVIL ---
+        let isMobileDrawerOpen = false;
+        function toggleMobileDrawer() {
+            isMobileDrawerOpen = !isMobileDrawerOpen;
+            const panel = document.getElementById('control-panel');
+            const text = document.getElementById('mobile-drawer-text');
+            const icon = document.getElementById('mobile-drawer-icon');
+
+            if (isMobileDrawerOpen) {
+                panel.classList.add('drawer-open');
+                text.textContent = 'Ocultar Panel';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>`;
+            } else {
+                panel.classList.remove('drawer-open');
+                text.textContent = 'Ver Parámetros';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>`;
+            }
+        }
+
+        function openMobileDrawer() {
+            if (window.innerWidth <= 768 && !isMobileDrawerOpen) toggleMobileDrawer();
+        }
+        function closeMobileDrawer() {
+            if (window.innerWidth <= 768 && isMobileDrawerOpen) toggleMobileDrawer();
+        }
+
+        // --- GESTIÓN DE INTERFAZ DE USUARIO ---
+        function initUIControls() {
+            // Sincronizar Sliders con Variables
+            setupSlider("speed", "v0", " m/s", () => buildScene());
+            setupSlider("angle", "angle", "°", () => buildScene());
+            setupSlider("azimuth", "azimuth", "°", () => buildScene());
+            setupSlider("height", "h0", " m", () => buildScene());
+            setupSlider("drag", "c", "", () => buildScene());
+            setupSlider("gravity", "g", " m/s²", () => buildScene());
+            setupSlider("mass", "mass", " kg", () => buildScene());
+
+            // Listeners para colapsar paneles
+            document.getElementById('btn-collapse-params').addEventListener('click', () => {
+                toggleCollapseSection('params-content', 'chevron-params');
+            });
+            document.getElementById('btn-collapse-results').addEventListener('click', () => {
+                toggleCollapseSection('results-content', 'chevron-results');
+            });
+
+            // Listener para ocultar todo el HUD (Preservando botones esenciales de ejecución)
+            let hudVisible = true;
+            document.getElementById('btn-toggle-hud').addEventListener('click', () => {
+                hudVisible = !hudVisible;
+                const hudElements = document.querySelectorAll('.hud-element');
+                const btnText = document.getElementById('hud-toggle-text');
+                const btnIcon = document.getElementById('hud-toggle-icon');
+
+                hudElements.forEach(el => {
+                    if (hudVisible) {
+                        el.classList.remove('opacity-0', 'pointer-events-none');
+                        el.classList.add('opacity-100');
+                    } else {
+                        el.classList.add('opacity-0', 'pointer-events-none');
+                        el.classList.remove('opacity-100');
+                    }
+                });
+
+                if (hudVisible) {
+                    btnText.innerText = "Ocultar HUD";
+                    btnIcon.innerHTML = `
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    `;
+                } else {
+                    btnText.innerText = "Mostrar HUD";
+                    btnIcon.innerHTML = `
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                    `;
+                }
+            });
+
+            // Botón de Lanzamiento
+            document.getElementById('btn-fire').addEventListener('click', fireProjectile);
+            document.getElementById('btn-reset').addEventListener('click', () => { resetSimulation(); openMobileDrawer(); });
+            document.getElementById('btn-pause').addEventListener('click', togglePause);
+
+            // Selector de Entornos (Presets)
+            document.getElementById('preset-env').addEventListener('change', function(e) {
+                const preset = e.target.value;
+                switch(preset) {
+                    case 'earth':
+                        updateConfig('gravity', 9.81, ' m/s²');
+                        updateConfig('drag', 0.10, '');
+                        break;
+                    case 'moon':
+                        updateConfig('gravity', 1.62, ' m/s²');
+                        updateConfig('drag', 0.0, '');
+                        break;
+                    case 'mars':
+                        updateConfig('gravity', 3.71, ' m/s²');
+                        updateConfig('drag', 0.02, '');
+                        break;
+                    case 'jupiter':
+                        updateConfig('gravity', 24.79, ' m/s²');
+                        updateConfig('drag', 0.45, '');
+                        break;
+                    case 'vacuum':
+                        updateConfig('gravity', 9.81, ' m/s²');
+                        updateConfig('drag', 0.0, '');
+                        break;
+                }
+                buildScene();
+            });
+
+            // Configuración de Cámaras
+            const setupCamBtn = (btnId, mode) => {
+                document.getElementById(btnId).addEventListener('click', function(e) {
+                    ['cam-orbit', 'cam-follow', 'cam-gun', 'cam-top'].forEach(id => {
+                        const el = document.getElementById(id);
+                        el.className = "text-slate-400 hover:text-white hover:bg-slate-800 font-semibold py-1 px-2.5 rounded text-[10px] transition-colors tracking-wide";
+                    });
+                    e.target.className = "bg-cyan-600 text-white font-semibold py-1 px-2.5 rounded text-[10px] transition-colors tracking-wide hover:bg-cyan-500";
+                    state.cameraMode = mode;
+                });
+            };
+
+            setupCamBtn('cam-orbit', 'orbit');
+            setupCamBtn('cam-follow', 'follow');
+            setupCamBtn('cam-gun', 'gun');
+            setupCamBtn('cam-top', 'top');
+        }
+
+        // Helper para mapear sliders de Tailwind
+        function setupSlider(id, configKey, suffix = "", onUpdate = null) {
+            const slider = document.getElementById(`slide-${id}`);
+            const valueLabel = document.getElementById(`val-${id}`);
+            
+            slider.addEventListener('input', function(e) {
+                let val = parseFloat(e.target.value);
+                config[configKey] = val;
+                valueLabel.innerText = val.toFixed(configKey === 'c' ? 2 : (configKey === 'h0' ? 1 : 0)) + suffix;
+                
+                if (configKey === 'g' || configKey === 'c') {
+                    document.getElementById('preset-env').value = "custom";
+                }
+
+                if (onUpdate) onUpdate();
+            });
+        }
+
+        // Forzar actualización de variables por preset
+        function updateConfig(id, value, suffix) {
+            config[id] = value;
+            const slider = document.getElementById(`slide-${id}`);
+            const label = document.getElementById(`val-${id}`);
+            if (slider) slider.value = value;
+            if (label) label.innerText = value.toFixed(id === 'c' ? 2 : 1) + suffix;
+        }
+
+        function updateTelemetry(currentSpeed) {
+            // Calcular velocidades parciales utilizando los componentes actuales del estado
+            const speedH = Math.sqrt(state.vx * state.vx + state.vz * state.vz);
+            const speedV = state.vy;
+
+            // Telemetría de Cabecera (Desktop)
+            document.getElementById('tel-speed').innerHTML = `${currentSpeed.toFixed(2)} <span class="text-xs font-normal text-slate-400">m/s</span>`;
+            document.getElementById('tel-vxz').innerHTML = `${speedH.toFixed(2)} <span class="text-xs font-normal text-slate-400">m/s</span>`;
+            
+            // Agregar dirección visual dinámica para la velocidad vertical (ascenso/descenso)
+            const dirArrow = speedV > 0.05 ? '↑' : (speedV < -0.05 ? '↓' : '↔');
+            document.getElementById('tel-vy').innerHTML = `${dirArrow} ${speedV.toFixed(2)} <span class="text-xs font-normal text-slate-400">m/s</span>`;
+            
+            document.getElementById('tel-height').innerHTML = `${state.y.toFixed(2)} <span class="text-xs font-normal text-slate-400">m</span>`;
+            
+            const distXZ = Math.sqrt(state.x*state.x + state.z*state.z);
+            document.getElementById('tel-distance').innerHTML = `${distXZ.toFixed(2)} <span class="text-xs font-normal text-slate-400">m</span>`;
+            document.getElementById('tel-time').innerHTML = `${state.time.toFixed(2)} <span class="text-xs font-normal text-slate-400">s</span>`;
+
+            // Telemetría Móvil
+            document.getElementById('tel-mob-height').innerText = `${state.y.toFixed(1)}m`;
+            document.getElementById('tel-mob-distance').innerText = `${distXZ.toFixed(1)}m`;
+            document.getElementById('tel-mob-time').innerText = `${state.time.toFixed(1)}s`;
+            document.getElementById('tel-mob-speed').innerText = `${currentSpeed.toFixed(1)}m/s`;
+            document.getElementById('tel-mob-vxz').innerText = `${speedH.toFixed(1)}m/s`;
+            document.getElementById('tel-mob-vy').innerText = `${speedV.toFixed(1)}m/s`;
+        }
+
+        // --- MANEJO DE CÁMARA DINÁMICA ---
+        function updateCamera() {
+            if (!projectile || !state.running || state.hasLanded) {
+                controls.enabled = true;
+                if (state.hasLanded) {
+                    // Centrar la cámara suavemente en el punto de impacto final
+                    const targetPos = new THREE.Vector3(state.x, 0, state.z);
+                    controls.target.lerp(targetPos, 0.05);
+                } else {
+                    // En reposo, regresa suavemente el foco a la base del cañón
+                    const targetPos = new THREE.Vector3(0, config.h0, 0);
+                    controls.target.lerp(targetPos, 0.05);
+                }
+                controls.update();
+                return;
+            }
+
+            switch(state.cameraMode) {
+                case 'follow':
+                    controls.enabled = false;
+                    const backOffset = 15;
+                    const upOffset = 6;
+                    
+                    const velMagnitude = Math.sqrt(state.vx*state.vx + state.vz*state.vz);
+                    let dirX = 1;
+                    let dirZ = 0;
+                    if (velMagnitude > 0.1) {
+                        dirX = state.vx / velMagnitude;
+                        dirZ = state.vz / velMagnitude;
+                    }
+                    
+                    camera.position.set(
+                        state.x - dirX * backOffset,
+                        state.y + upOffset,
+                        state.z - dirZ * backOffset
+                    );
+                    camera.lookAt(state.x, state.y, state.z);
+                    break;
+
+                case 'gun':
+                    controls.enabled = false;
+                    camera.position.set(0, config.h0 + 1.8, 0);
+                    camera.lookAt(state.x, state.y, state.z);
+                    break;
+
+                case 'top':
+                    controls.enabled = false;
+                    camera.position.set(state.x, state.y + 40, state.z);
+                    camera.lookAt(state.x, state.y, state.z);
+                    break;
+
+                case 'orbit':
+                default:
+                    controls.enabled = true;
+                    // Solución definitiva al bloqueo de cámara: lerp (suavizado)
+                    const targetPos = new THREE.Vector3(state.x, state.y, state.z);
+                    controls.target.lerp(targetPos, 0.05);
+                    controls.update();
+                    break;
+            }
+        }
+
+        // --- CICLO DE ANIMACIÓN DE LA ESCENA (RENDER LOOP) ---
+        let lastTime = 0;
+        function animate(now) {
+            requestAnimationFrame(animate);
+
+            if (!lastTime) lastTime = now;
+            let dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            if (dt > 0.1) dt = 0.1;
+
+            updatePhysics(dt);
+            updateCamera();
+
+            if (landingMarker.visible) {
+                const inner = landingMarker.getObjectByName("inner");
+                if (inner) inner.rotation.z += 0.01;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
