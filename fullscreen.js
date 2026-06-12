@@ -24,7 +24,19 @@
         // Class styling depending on the simulator layout
         const path = window.location.pathname.toLowerCase();
         
-        if (path.includes('baloncesto') || path.includes('proyectiles')) {
+        if (path.includes('index.html') || path.endsWith('/') || path.endsWith('\\') || path === '') {
+            // Home page: position next to the floating QR button (bottom right)
+            fsButton.className = 'fixed bottom-6 z-40 bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/50 rounded-full w-12 h-12 sm:w-14 sm:h-14 text-cyan-400 hover:text-cyan-300 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all duration-300 hover:scale-110 active:scale-95 pointer-events-auto';
+            const updatePosition = () => {
+                if (window.innerWidth < 640) {
+                    fsButton.style.right = '76px'; // 24px (right-6) + 48px (w-12) + 4px gap
+                } else {
+                    fsButton.style.right = '88px'; // 24px (right-6) + 56px (w-14) + 8px gap
+                }
+            };
+            updatePosition();
+            window.addEventListener('resize', updatePosition);
+        } else if (path.includes('baloncesto') || path.includes('proyectiles')) {
             // These have a HUD toggle button at top-4 right-4.
             // We'll place our button to the left of it (right-36)
             fsButton.className = 'fixed top-4 right-32 sm:right-36 z-50 bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/50 rounded-lg p-2 sm:px-3 sm:py-2 text-cyan-400 hover:text-cyan-300 transition-all duration-200 shadow-lg shadow-cyan-950/30 flex items-center gap-2 pointer-events-auto';
@@ -38,6 +50,7 @@
             // We place it as a floating button next to top-right controls
             fsButton.className = 'fixed top-4 right-16 z-30 glass-panel w-10 h-10 rounded-xl flex items-center justify-center text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 transition-all shadow-lg pointer-events-auto';
         }
+
 
         // Apply styles if we need to enforce layout compatibility
         fsButton.style.zIndex = '999';
