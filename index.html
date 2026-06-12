@@ -416,9 +416,10 @@
                 </p>
                 
                 <!-- Contenedor QR con borde de neón -->
-                <div class="p-4 bg-slate-950/85 rounded-2xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex justify-center items-center">
+                <div class="p-4 bg-white rounded-2xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex justify-center items-center">
                     <canvas id="qr-canvas" class="w-48 h-48 rounded-lg"></canvas>
                 </div>
+
 
 
                 <!-- Enlace y botón de copiar -->
@@ -643,10 +644,11 @@
                         element: qrCanvas,
                         value: currentUrl,
                         size: 250,
-                        background: '#080c1c',
-                        foreground: '#06b6d4',
+                        background: '#ffffff',
+                        foreground: '#03050d',
                         level: 'H'
                     });
+
                 } else if (qrGenerator) {
                     qrGenerator.value = currentUrl;
                 }
