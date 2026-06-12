@@ -385,10 +385,56 @@
         </div>
     </footer>
 
+    <!-- BOTÓN FLOTANTE CÓDIGO QR -->
+    <div class="fixed bottom-6 right-6 z-40 pointer-events-auto">
+        <button onclick="toggleQRModal()" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/50 text-cyan-400 hover:text-cyan-300 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all duration-300 hover:scale-110 active:scale-95" title="Código QR / Compartir">
+            <!-- Icono de QR en SVG -->
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm13-2h3v2h-3zm-2 2h2v3h-2zm4 2h2v3h-2zm-2 2h2v-2h-2zm2-4h2v2h-2zM9 9H7V7h2zm8 0h-2V7h2zm-8 8H7v-2h2zm2-2h2v2h-2zm2 2h2v2h-2zm-2 2h2v-2h-2z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- MODAL DE COMPARTIR Y CÓDIGO QR -->
+    <div id="qr-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden pointer-events-auto transition-all duration-300 opacity-0">
+        <div class="cyber-glass w-full max-w-sm rounded-3xl p-6 shadow-2xl relative border border-cyan-500/30 transform scale-95 transition-transform duration-300">
+            <button onclick="toggleQRModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-2xl font-bold transition-all">&times;</button>
+            
+            <h2 class="font-orbitron text-sm font-bold text-cyan-400 mb-4 flex items-center gap-2 tracking-wide uppercase">
+                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m0 11v1m0-6V9M4 4h4v4H4V4zm0 12h4v4H4v-4zM16 4h4v4h-4V4zM16 16h2v2h-2v-2zm2 2h2v2h-2v-2zm0-2h2v2h-2v-2zm-2 2h2v2h-2v-2z" />
+                </svg>
+                Acceso Rápido Móvil
+            </h2>
+
+            <div class="flex flex-col items-center gap-4 text-center">
+                <p class="text-xs text-slate-300 sub-font font-semibold">
+                    Escanea el código QR con tu celular para abrir los simuladores en tu móvil.
+                </p>
+                
+                <!-- Contenedor QR con borde de neón -->
+                <div class="p-4 bg-slate-950/85 rounded-2xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex justify-center items-center">
+                    <img id="qr-image" src="" alt="Código QR" class="w-48 h-48 rounded-lg">
+                </div>
+
+                <!-- Enlace y botón de copiar -->
+                <div class="w-full flex flex-col gap-2 mt-2">
+                    <div id="qr-link-text" class="relative bg-slate-950/80 border border-slate-800 text-cyan-400 font-mono text-[10px] rounded-lg p-2.5 break-all text-center">
+                        https://fisica-interactiva.web.app
+                    </div>
+                    <button onclick="copyToClipboard()" id="copy-btn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black py-2 rounded-xl font-orbitron font-bold text-xs shadow-lg shadow-cyan-900/20 active:scale-95 transition-transform flex items-center justify-center gap-1.5">
+                        Copiar Enlace
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- INTERACTIVE PARTICLE CANVAS BACKGROUND SCRIPT -->
     <script>
         const canvas = document.getElementById('particle-canvas');
         const ctx = canvas.getContext('2d');
+
 
         let particles = [];
         const maxParticles = 65;
@@ -560,6 +606,65 @@
                 }
             });
         }
+
+        // QR CODE MODAL FUNCTIONS
+        function toggleQRModal() {
+            const modal = document.getElementById('qr-modal');
+            const qrImg = document.getElementById('qr-image');
+            const linkText = document.getElementById('qr-link-text');
+            
+            // Generate clean URL (without index.html if present)
+            let currentUrl = window.location.href;
+            if (currentUrl.endsWith('index.html')) {
+                currentUrl = currentUrl.substring(0, currentUrl.length - 10);
+            }
+            
+            if (linkText) {
+                linkText.innerText = currentUrl;
+            }
+
+            if (!qrImg.src || qrImg.src.includes('localhost') !== currentUrl.includes('localhost')) {
+                qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentUrl)}&color=06b6d4&bgcolor=080c1c`;
+            }
+
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.offsetHeight; // force reflow
+                modal.classList.remove('opacity-0');
+                modal.classList.add('opacity-100');
+                modal.firstElementChild.classList.remove('scale-95');
+                modal.firstElementChild.classList.add('scale-100');
+            } else {
+                modal.classList.remove('opacity-100');
+                modal.classList.add('opacity-0');
+                modal.firstElementChild.classList.remove('scale-100');
+                modal.firstElementChild.classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        function copyToClipboard() {
+            let currentUrl = window.location.href;
+            if (currentUrl.endsWith('index.html')) {
+                currentUrl = currentUrl.substring(0, currentUrl.length - 10);
+            }
+            
+            navigator.clipboard.writeText(currentUrl).then(() => {
+                const btn = document.getElementById('copy-btn');
+                const origText = btn.innerText;
+                btn.innerText = '¡Copiado!';
+                btn.classList.remove('bg-cyan-600');
+                btn.classList.add('bg-emerald-600');
+                setTimeout(() => {
+                    btn.innerText = origText;
+                    btn.classList.remove('bg-emerald-600');
+                    btn.classList.add('bg-cyan-600');
+                }, 2000);
+            });
+        }
     </script>
 </body>
 </html>
+

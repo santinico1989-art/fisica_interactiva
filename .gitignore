@@ -1,0 +1,11 @@
+# Firebase cache and logs
+.firebase/
+firebase-debug.log
+.firebaserc
+
+# Backup files
+*.bak
+
+# Windows files
+Thumbs.db
+Desktop.ini
