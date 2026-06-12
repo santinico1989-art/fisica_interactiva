@@ -6,6 +6,9 @@
     <title>Portal de Simuladores Modernos de Física</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QRious Library for offline QR code generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
@@ -414,8 +417,9 @@
                 
                 <!-- Contenedor QR con borde de neón -->
                 <div class="p-4 bg-slate-950/85 rounded-2xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex justify-center items-center">
-                    <img id="qr-image" src="" alt="Código QR" class="w-48 h-48 rounded-lg">
+                    <canvas id="qr-canvas" class="w-48 h-48 rounded-lg"></canvas>
                 </div>
+
 
                 <!-- Enlace y botón de copiar -->
                 <div class="w-full flex flex-col gap-2 mt-2">
@@ -608,9 +612,11 @@
         }
 
         // QR CODE MODAL FUNCTIONS
+        let qrGenerator = null;
+
         function toggleQRModal() {
             const modal = document.getElementById('qr-modal');
-            const qrImg = document.getElementById('qr-image');
+            const qrCanvas = document.getElementById('qr-canvas');
             const linkText = document.getElementById('qr-link-text');
             
             // Generate clean URL (without index.html if present)
@@ -623,10 +629,6 @@
                 linkText.innerText = currentUrl;
             }
 
-            if (!qrImg.src || qrImg.src.includes('localhost') !== currentUrl.includes('localhost')) {
-                qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentUrl)}&color=06b6d4&bgcolor=080c1c`;
-            }
-
             if (modal.classList.contains('hidden')) {
                 modal.classList.remove('hidden');
                 modal.offsetHeight; // force reflow
@@ -634,6 +636,20 @@
                 modal.classList.add('opacity-100');
                 modal.firstElementChild.classList.remove('scale-95');
                 modal.firstElementChild.classList.add('scale-100');
+
+                // Generate QR locally using QRious library on canvas
+                if (!qrGenerator && typeof QRious !== 'undefined') {
+                    qrGenerator = new QRious({
+                        element: qrCanvas,
+                        value: currentUrl,
+                        size: 250,
+                        background: '#080c1c',
+                        foreground: '#06b6d4',
+                        level: 'H'
+                    });
+                } else if (qrGenerator) {
+                    qrGenerator.value = currentUrl;
+                }
             } else {
                 modal.classList.remove('opacity-100');
                 modal.classList.add('opacity-0');
@@ -644,6 +660,7 @@
                 }, 300);
             }
         }
+
 
         function copyToClipboard() {
             let currentUrl = window.location.href;
