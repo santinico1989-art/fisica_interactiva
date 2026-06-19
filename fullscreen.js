@@ -127,42 +127,55 @@
         const container = document.getElementById("canvas-container");
         if (container && typeof ResizeObserver !== "undefined") {
             const resizeObserver = new ResizeObserver(() => {
-                if (typeof window.onWindowResize === "function") {
-                    window.onWindowResize();
-                } else if (typeof onWindowResize === "function") {
-                    onWindowResize();
+                // Ensure Three.js camera and renderer are initialized first to prevent errors
+                const hasCamera = typeof camera !== "undefined" && camera !== null;
+                const hasRenderer = typeof renderer !== "undefined" && renderer !== null;
+                if (hasCamera && hasRenderer) {
+                    if (typeof window.onWindowResize === "function") {
+                        window.onWindowResize();
+                    } else if (typeof onWindowResize === "function") {
+                        onWindowResize();
+                    }
                 }
             });
             resizeObserver.observe(container);
         }
 
         // Restore fullscreen if preferred using the first user gesture
-        const shouldBeFS = localStorage.getItem('fullscreen_preferred') === 'true';
-        if (shouldBeFS) {
-            const restoreFS = () => {
-                const isFS = !!(document.fullscreenElement || 
-                                document.webkitFullscreenElement || 
-                                document.mozFullScreenElement || 
-                                document.msFullscreenElement);
-                if (!isFS && requestFS) {
-                    const req = docEl.requestFullscreen || 
-                                docEl.webkitRequestFullscreen || 
-                                docEl.mozRequestFullScreen || 
-                                docEl.msRequestFullscreen;
-                    if (req) {
-                        req.call(docEl).catch(err => {
-                            console.warn("Auto-fullscreen failed:", err);
-                        });
+        const checkAndRestoreFullscreen = () => {
+            const shouldBeFS = localStorage.getItem('fullscreen_preferred') === 'true';
+            if (shouldBeFS) {
+                const restoreFS = () => {
+                    const isFS = !!(document.fullscreenElement || 
+                                    document.webkitFullscreenElement || 
+                                    document.mozFullScreenElement || 
+                                    document.msFullscreenElement);
+                    if (!isFS && requestFS) {
+                        const req = docEl.requestFullscreen || 
+                                    docEl.webkitRequestFullscreen || 
+                                    docEl.mozRequestFullScreen || 
+                                    docEl.msRequestFullscreen;
+                        if (req) {
+                            req.call(docEl).catch(err => {
+                                console.warn("Auto-fullscreen failed:", err);
+                            });
+                        }
                     }
-                }
-                // Clean up listeners
-                window.removeEventListener('click', restoreFS, true);
-                window.removeEventListener('touchstart', restoreFS, true);
-                window.removeEventListener('keydown', restoreFS, true);
-            };
-            window.addEventListener('click', restoreFS, true);
-            window.addEventListener('touchstart', restoreFS, true);
-            window.addEventListener('keydown', restoreFS, true);
-        }
+                    // Clean up listeners
+                    window.removeEventListener('click', restoreFS, true);
+                    window.removeEventListener('touchstart', restoreFS, true);
+                    window.removeEventListener('keydown', restoreFS, true);
+                };
+                window.addEventListener('click', restoreFS, true);
+                window.addEventListener('touchstart', restoreFS, true);
+                window.addEventListener('keydown', restoreFS, true);
+            }
+        };
+
+        // Reset unloading flag and check fullscreen state on every page load or bfcache restore
+        window.addEventListener('pageshow', () => {
+            isUnloading = false;
+            checkAndRestoreFullscreen();
+        });
     });
 })();
