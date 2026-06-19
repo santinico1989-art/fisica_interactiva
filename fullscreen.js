@@ -93,12 +93,14 @@
 
         fsButton.addEventListener('click', toggleFullscreen);
 
-        // Update button UI on change
+        // Update button UI on change and save preference in localStorage
         function onFSChange() {
-            const isFS = document.fullscreenElement || 
-                         document.webkitFullscreenElement || 
-                         document.mozFullScreenElement || 
-                         document.msFullscreenElement;
+            const isFS = !!(document.fullscreenElement || 
+                            document.webkitFullscreenElement || 
+                            document.mozFullScreenElement || 
+                            document.msFullscreenElement);
+
+            localStorage.setItem('fullscreen_preferred', isFS ? 'true' : 'false');
 
             const span = fsButton.querySelector('span');
             if (isFS) {
@@ -112,5 +114,47 @@
         document.addEventListener('webkitfullscreenchange', onFSChange);
         document.addEventListener('mozfullscreenchange', onFSChange);
         document.addEventListener('MSFullscreenChange', onFSChange);
+
+        // Setup ResizeObserver for Three.js canvas container to solve layout rendering latency (Tailwind CSS initialization lag on mobile)
+        const container = document.getElementById("canvas-container");
+        if (container && typeof ResizeObserver !== "undefined") {
+            const resizeObserver = new ResizeObserver(() => {
+                if (typeof window.onWindowResize === "function") {
+                    window.onWindowResize();
+                } else if (typeof onWindowResize === "function") {
+                    onWindowResize();
+                }
+            });
+            resizeObserver.observe(container);
+        }
+
+        // Restore fullscreen if preferred using the first user gesture
+        const shouldBeFS = localStorage.getItem('fullscreen_preferred') === 'true';
+        if (shouldBeFS) {
+            const restoreFS = () => {
+                const isFS = !!(document.fullscreenElement || 
+                                document.webkitFullscreenElement || 
+                                document.mozFullScreenElement || 
+                                document.msFullscreenElement);
+                if (!isFS && requestFS) {
+                    const req = docEl.requestFullscreen || 
+                                docEl.webkitRequestFullscreen || 
+                                docEl.mozRequestFullScreen || 
+                                docEl.msRequestFullscreen;
+                    if (req) {
+                        req.call(docEl).catch(err => {
+                            console.warn("Auto-fullscreen failed:", err);
+                        });
+                    }
+                }
+                // Clean up listeners
+                window.removeEventListener('click', restoreFS, true);
+                window.removeEventListener('touchstart', restoreFS, true);
+                window.removeEventListener('keydown', restoreFS, true);
+            };
+            window.addEventListener('click', restoreFS, true);
+            window.addEventListener('touchstart', restoreFS, true);
+            window.addEventListener('keydown', restoreFS, true);
+        }
     });
 })();
