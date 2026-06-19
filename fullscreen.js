@@ -93,8 +93,16 @@
 
         fsButton.addEventListener('click', toggleFullscreen);
 
+        // Prevent navigation/unload exit events from resetting the fullscreen preference
+        let isUnloading = false;
+        const setUnloading = () => { isUnloading = true; };
+        window.addEventListener('beforeunload', setUnloading);
+        window.addEventListener('pagehide', setUnloading);
+
         // Update button UI on change and save preference in localStorage
         function onFSChange() {
+            if (isUnloading) return;
+
             const isFS = !!(document.fullscreenElement || 
                             document.webkitFullscreenElement || 
                             document.mozFullScreenElement || 
