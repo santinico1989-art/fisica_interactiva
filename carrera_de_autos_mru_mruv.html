@@ -179,6 +179,48 @@
             .top-right-floating { display: none !important; }
         }
 
+        /* Mobile Landscape Specific Adjustments */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #landscape-hud {
+                bottom: 6px !important;
+                flex-direction: row !important;
+                gap: 8px !important;
+            }
+            #telemetry-panel-l {
+                padding: 4px 12px !important;
+                border-radius: 12px !important;
+                border-width: 1px !important;
+                font-size: 11px !important;
+                gap: 12px !important;
+            }
+            #telemetry-panel-l span {
+                font-size: 13px !important;
+            }
+            #telemetry-panel-l .w-px {
+                height: 12px !important;
+            }
+            #status-panel-l {
+                padding: 4px 12px !important;
+                border-radius: 12px !important;
+                font-size: 10px !important;
+                gap: 12px !important;
+            }
+            #status-panel-l span {
+                font-size: 11px !important;
+            }
+            #status-panel-l #score-display-l {
+                font-size: 13px !important;
+            }
+            #status-panel-l #phase-badge-l {
+                font-size: 10px !important;
+                padding: 2px 6px !important;
+                border-radius: 6px !important;
+            }
+            #status-panel-l .h-5 {
+                height: 12px !important;
+            }
+        }
+
         /* Floating Edge Buttons for Landscape */
         .edge-toggle {
             position: fixed;
@@ -254,9 +296,9 @@
             </div>
 
             <!-- Landscape HUD / UI Overlay (Centered Bottom) -->
-            <div class="landscape-only absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3 pointer-events-none">
+            <div id="landscape-hud" class="landscape-only absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3 pointer-events-none">
                 <!-- Live Telemetry in Landscape -->
-                <div class="bg-black/90 backdrop-blur-md px-6 py-2.5 rounded-2xl border-2 border-cyan-500/40 flex items-center gap-6 text-sm font-mono pointer-events-auto shadow-2xl text-slate-100">
+                <div id="telemetry-panel-l" class="bg-black/90 backdrop-blur-md px-6 py-2.5 rounded-2xl border-2 border-cyan-500/40 flex items-center gap-6 text-sm font-mono pointer-events-auto shadow-2xl text-slate-100">
                     <div>TIEMPO: <span id="tel-time-l" class="font-black text-cyan-400 text-lg">0.00</span> s</div>
                     <div class="w-px h-5 bg-white/20"></div>
                     <div>DISTANCIA A: <span id="tel-dist-a-l" class="font-black text-red-400 text-lg">0.00</span> m</div>
@@ -264,7 +306,7 @@
                     <div>DISTANCIA B: <span id="tel-dist-b-l" class="font-black text-blue-400 text-lg">0.00</span> m</div>
                 </div>
 
-                <div class="bg-black/70 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/20 flex items-center gap-5 shadow-2xl">
+                <div id="status-panel-l" class="bg-black/70 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/20 flex items-center gap-5 shadow-2xl">
                     <div class="flex items-center gap-2.5">
                         <span class="text-xs text-slate-300 font-bold uppercase tracking-widest font-orbitron">PUNTOS:</span>
                         <span class="text-green-400 font-orbitron text-lg font-black" id="score-display-l">0</span>
